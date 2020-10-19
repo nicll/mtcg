@@ -1,8 +1,8 @@
 ﻿using System;
 
-namespace MtcgServer.Cards.MonsterCards
+namespace MtcgServer.Cards.SpellCards
 {
-    public class Knight : MonsterCard
+    public class NormalSpell : SpellCard
     {
         public override ElementType Type => ElementType.Normal;
 
