@@ -139,8 +139,11 @@ namespace MtcgServer
             if (player.Coins - 5 < 0)
                 return;
 
-            var newPlayer = new Player(player.ID, player.Name, player.PasswordHash, player.Coins - 5, player.Stack,
-                player.Deck, player.ELO, player.Wins, player.Losses); // this would look nicer in C# 9
+            // this would look nicer in C# 9
+            var newPlayer = new Player(player.ID, player.Name, player.PasswordHash,
+                player.StatusText, player.EmoticonText, player.Coins - 5,
+                player.Stack, player.Deck, player.ELO, player.Wins, player.Losses);
+
             // ToDo: add random cards to stack
 
             _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);

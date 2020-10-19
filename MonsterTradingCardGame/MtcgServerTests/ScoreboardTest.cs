@@ -15,9 +15,9 @@ namespace MtcgServerTests
         {
             unorderedPlayers = new List<Player>
             {
-                new Player(Guid.Empty, "Player A", new byte[0], 0, new Card[0], new Card[0], 200, 10, 9), // highest ELO
-                new Player(Guid.Empty, "Player B", new byte[0], 0, new Card[0], new Card[0], 150, 30, 5), // most wins
-                new Player(Guid.Empty, "Player C", new byte[0], 0, new Card[0], new Card[0], 100, 20, 0)  // least losses
+                new Player(Guid.Empty, "Player A", new byte[0], string.Empty, string.Empty, 0, new Card[0], new Card[0], 200, 10, 9), // highest ELO
+                new Player(Guid.Empty, "Player B", new byte[0], string.Empty, string.Empty, 0, new Card[0], new Card[0], 150, 30, 5), // most wins
+                new Player(Guid.Empty, "Player C", new byte[0], string.Empty, string.Empty, 0, new Card[0], new Card[0], 100, 20, 0)  // least losses
             };
         }
 

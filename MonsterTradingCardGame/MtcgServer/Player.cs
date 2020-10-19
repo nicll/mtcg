@@ -3,6 +3,9 @@ using System.Collections.Generic;
 
 namespace MtcgServer
 {
+    /// <summary>
+    /// Represents a player, their inventory and stats.
+    /// </summary>
     public class Player
     {
         private readonly List<Card> _stack = new List<Card>();
@@ -13,6 +16,10 @@ namespace MtcgServer
         public string Name { get; }
 
         public byte[] PasswordHash { get; }
+
+        public string StatusText { get; }
+
+        public string EmoticonText { get; }
 
         public int Coins { get; }
 
@@ -26,11 +33,14 @@ namespace MtcgServer
 
         public int Losses { get; }
 
-        public Player(Guid id, string name, byte[] passwordHash, int coins, IReadOnlyCollection<Card> stack, IReadOnlyCollection<Card> deck, int elo, int wins, int losses)
+        public Player(Guid id, string name, byte[] passwordHash, string statusText, string emoticonText, int coins,
+            IReadOnlyCollection<Card> stack, IReadOnlyCollection<Card> deck, int elo, int wins, int losses)
         {
             ID = id;
             Name = name;
             PasswordHash = passwordHash;
+            StatusText = statusText;
+            EmoticonText = emoticonText;
             Coins = coins;
             _stack = new List<Card>(stack);
             _deck = new List<Card>(deck);
@@ -40,6 +50,6 @@ namespace MtcgServer
         }
 
         internal static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
-            => new Player(id, name, passwordHash, 20, new Card[0], new Card[0], 100, 0, 0);
+            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, new Card[0], new Card[0], 100, 0, 0);
     }
 }
