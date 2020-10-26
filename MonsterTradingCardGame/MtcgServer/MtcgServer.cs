@@ -156,7 +156,7 @@ namespace MtcgServer
         /// <param name="session">Session of the player.</param>
         /// <param name="playerId">ID of the player or <see cref="Guid.Empty"/>.</param>
         /// <returns>Whether or not the player's ID was found.</returns>
-        private bool TryGetPlayerID(Session session, out Guid playerId)
+        private bool TryGetPlayerID(in Session session, out Guid playerId)
         {
             if (_sessions.TryGetValue(session, out playerId))
                 return true;
@@ -171,7 +171,7 @@ namespace MtcgServer
         /// <param name="playerId">ID of the player.</param>
         /// <param name="pass">Password of the player.</param>
         /// <returns>Hashed password of the player.</returns>
-        private static byte[] HashPlayerPassword(Guid playerId, string pass)
+        private static byte[] HashPlayerPassword(Guid playerId, in string pass)
         {
             var hasher = SHA256.Create();
             var combination = Encoding.UTF8.GetBytes(Pepper + playerId.ToString("N") + pass);
@@ -185,7 +185,7 @@ namespace MtcgServer
         /// <param name="left">First memory area.</param>
         /// <param name="right">Second memory area.</param>
         /// <returns>Whether or not the two areas contain the same content.</returns>
-        private static bool CompareHashes(ReadOnlySpan<byte> left, ReadOnlySpan<byte> right)
+        private static bool CompareHashes(in ReadOnlySpan<byte> left, in ReadOnlySpan<byte> right)
             => left.SequenceEqual(right);
     }
 }
