@@ -4,14 +4,14 @@ using static MtcgServerTests.Constants;
 
 namespace MtcgServerTests
 {
-    public class DatabaseTest
+    public class PostgresDbTest
     {
         private MtcgServer.IDatabase _db;
 
         [SetUp]
         public void Setup()
         {
-            _db = new MtcgServer.PostgreSqlDatabase();
+            _db = new MtcgServer.Databases.Postgres.PostgreSqlDatabase("Server=localhost;User Id=ro_user;Password=ro_user;Database=mtcg");
         }
 
         [Test]
