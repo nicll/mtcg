@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
+using System.Threading.Tasks;
 
 namespace RestWebServerLauncher
 {
@@ -26,37 +27,37 @@ namespace RestWebServerLauncher
             _web = new WebServer(new IPEndPoint(IPAddress.Any, 2200));
             _count = 0;
 
-            _web.RegisterStaticRoute("GET", "/messages", _ => new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(ListMessages())));
-            _web.RegisterStaticRoute("POST", "/messages", ctx => new RestResponse(HttpStatusCode.Created, JsonConvert.SerializeObject(AddMessage(ctx.Payload))));
+            _web.RegisterStaticRoute("GET", "/messages", _ => Task.FromResult(new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(ListMessages()))));
+            _web.RegisterStaticRoute("POST", "/messages", ctx => Task.FromResult(new RestResponse(HttpStatusCode.Created, JsonConvert.SerializeObject(AddMessage(ctx.Payload)))));
             _web.RegisterResourceRoute("PUT", "/messages/%", ctx =>
             {
                 int id = ParseIntOrZero(ctx.Resources[0]);
 
                 if (id <= 0)
-                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid message id.");
+                    return Task.FromResult(new RestResponse(HttpStatusCode.BadRequest, "Invalid message id."));
 
                 bool created = UpdateMessage(id, ctx.Payload);
-                return new RestResponse(created ? HttpStatusCode.Created : HttpStatusCode.OK, string.Empty);
+                return Task.FromResult(new RestResponse(created ? HttpStatusCode.Created : HttpStatusCode.OK, string.Empty));
             });
             _web.RegisterResourceRoute("DELETE", "/messages/%", ctx =>
             {
                 int id = ParseIntOrZero(ctx.Resources[0]);
 
                 if (id <= 0)
-                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid message id.");
+                    return Task.FromResult(new RestResponse(HttpStatusCode.BadRequest, "Invalid message id."));
 
                 bool deleted = RemoveMessage(id);
-                return new RestResponse(deleted ? HttpStatusCode.OK : HttpStatusCode.NotFound, string.Empty);
+                return Task.FromResult(new RestResponse(deleted ? HttpStatusCode.OK : HttpStatusCode.NotFound, string.Empty));
             });
             _web.RegisterResourceRoute("GET", "/messages/%", ctx =>
             {
                 int id = ParseIntOrZero(ctx.Resources[0]);
 
                 if (id <= 0)
-                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid message id.");
+                    return Task.FromResult(new RestResponse(HttpStatusCode.BadRequest, "Invalid message id."));
 
                 var text = GetMessage(id);
-                return new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK, JsonConvert.SerializeObject(text) ?? string.Empty);
+                return Task.FromResult(new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK, JsonConvert.SerializeObject(text) ?? string.Empty));
             });
         }
 

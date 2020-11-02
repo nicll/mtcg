@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net;
 using System.Net.Sockets;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace RestWebServer
 {
@@ -30,7 +31,7 @@ namespace RestWebServer
         /// </summary>
         /// <param name="requestContext">Context of the request.</param>
         /// <returns>Response to the request.</returns>
-        public delegate RestResponse RequestHandler(RequestContext requestContext);
+        public delegate Task<RestResponse> RequestHandler(RequestContext requestContext);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WebServer"/> class with no registered routes.
@@ -115,13 +116,14 @@ namespace RestWebServer
             while (_listening)
             {
                 var connection = _listener.AcceptTcpClient();
-                new Thread(() => RunSingle(connection)) { Name = "Processing Thread" }.Start();
+                Task.Run(() => RunSingle(connection)).ConfigureAwait(false);
+                //new Thread(() => RunSingle(connection)) { Name = "Processing Thread" }.Start();
             }
 
             Trace.TraceInformation("Listening thread has stopped listening for incoming connections.");
         }
 
-        private void RunSingle(TcpClient connection)
+        private async Task RunSingle(TcpClient connection)
         {
             try
             {
@@ -130,12 +132,12 @@ namespace RestWebServer
                 using var reader = new StreamReader(connection.GetStream());
                 using var writer = new StreamWriter(connection.GetStream());
 
-                var firstLine = reader.ReadLine();
+                var firstLine = await reader.ReadLineAsync();
 
                 // check if stream immediately ends
                 if (firstLine is null)
                 {
-                    WriteHttpErrorToStream(writer, HttpStatusCode.BadRequest);
+                    await WriteHttpErrorToStream(writer, HttpStatusCode.BadRequest);
                     return;
                 }
 
@@ -144,7 +146,7 @@ namespace RestWebServer
                 // check for correct elements in header
                 if (firstLineParts.Length != 3 || firstLineParts[2] != "HTTP/1.1")
                 {
-                    WriteHttpErrorToStream(writer, HttpStatusCode.BadRequest);
+                    await WriteHttpErrorToStream(writer, HttpStatusCode.BadRequest);
                     return;
                 }
 
@@ -154,14 +156,14 @@ namespace RestWebServer
                 // check if the route is known
                 if (!(GetBestHandlerForRoute(route) is (var methodDict, var resources)))
                 {
-                    WriteHttpErrorToStream(writer, HttpStatusCode.NotFound);
+                    await WriteHttpErrorToStream(writer, HttpStatusCode.NotFound);
                     return;
                 }
 
                 // check if the method (verb) is allowed on the resource
                 if (!methodDict.TryGetValue(verb, out var handler))
                 {
-                    WriteHttpErrorToStream(writer, HttpStatusCode.MethodNotAllowed);
+                    await WriteHttpErrorToStream(writer, HttpStatusCode.MethodNotAllowed);
                     return;
                 }
 
@@ -170,7 +172,7 @@ namespace RestWebServer
                 int requestLength = 0;
                 while (!reader.EndOfStream)
                 {
-                    var line = reader.ReadLine();
+                    var line = await reader.ReadLineAsync();
 
                     // empty line separates header from body
                     if (String.IsNullOrEmpty(line))
@@ -186,7 +188,7 @@ namespace RestWebServer
                     if (String.Compare(parts[0], "Content-Length", StringComparison.InvariantCultureIgnoreCase) == 0
                         && !int.TryParse(parts[1], out requestLength))
                     {
-                        WriteHttpErrorToStream(writer, HttpStatusCode.LengthRequired);
+                        await WriteHttpErrorToStream(writer, HttpStatusCode.LengthRequired);
                         return;
                     }
 
@@ -199,7 +201,7 @@ namespace RestWebServer
                     // rest of request is body/payload
                     var bodyBuffer = new char[requestLength];
                     //var bodyBuffer = new byte[requestLength];
-                    reader.ReadBlock(bodyBuffer);
+                    await reader.ReadBlockAsync(bodyBuffer);
                     //reader.BaseStream.Read(bodyBuffer);
                     body = new string(bodyBuffer);
                     //body = reader.CurrentEncoding.GetString(bodyBuffer);
@@ -210,18 +212,18 @@ namespace RestWebServer
                 // invoke handler and send response
                 try
                 {
-                    var response = handler(requestContext);
-                    writer.WriteLine("HTTP/1.1 " + (int)response.StatusCode + " " + response.StatusCode);
+                    var response = await handler(requestContext);
+                    await writer.WriteLineAsync("HTTP/1.1 " + (int)response.StatusCode + " " + response.StatusCode);
                     foreach (var header in response.Headers)
-                        writer.WriteLine(header.Key + ": " + header.Value);
-                    writer.WriteLine("Content-Length: " + writer.Encoding.GetByteCount(response.Payload));
-                    writer.WriteLine();
-                    writer.Write(response.Payload);
-                    writer.Flush();
+                        await writer.WriteLineAsync(header.Key + ": " + header.Value);
+                    await writer.WriteLineAsync("Content-Length: " + writer.Encoding.GetByteCount(response.Payload));
+                    await writer.WriteLineAsync();
+                    await writer.WriteAsync(response.Payload);
+                    await writer.FlushAsync();
                 }
                 catch (Exception e)
                 {
-                    WriteHttpErrorToStream(writer, HttpStatusCode.InternalServerError);
+                    await WriteHttpErrorToStream(writer, HttpStatusCode.InternalServerError);
                     Trace.TraceError(e.ToString());
                     Debug.Fail("Exception occurred during processing.",
                         $"Request: {verb} {route}" + Environment.NewLine +
@@ -241,13 +243,13 @@ namespace RestWebServer
             }
         }
 
-        private static void WriteHttpErrorToStream(StreamWriter writer, HttpStatusCode statusCode)
+        private static async Task WriteHttpErrorToStream(StreamWriter writer, HttpStatusCode statusCode)
         {
             Trace.TraceWarning("Client-side error; StatusCode=" + statusCode);
-            writer.WriteLine("HTTP/1.1 " + (int)statusCode + " " + statusCode);
-            writer.WriteLine("Content-Length: 0");
-            writer.WriteLine();
-            writer.Flush();
+            await writer.WriteLineAsync("HTTP/1.1 " + (int)statusCode + " " + statusCode);
+            await writer.WriteLineAsync("Content-Length: 0");
+            await writer.WriteLineAsync();
+            await writer.FlushAsync();
         }
 
         private (Dictionary<string, RequestHandler> methodDict, string[] resources)? GetBestHandlerForRoute(string route)
