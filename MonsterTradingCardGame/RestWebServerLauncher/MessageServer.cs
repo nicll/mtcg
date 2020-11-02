@@ -1,4 +1,5 @@
-﻿using RestWebServer;
+﻿using Newtonsoft.Json;
+using RestWebServer;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -25,8 +26,8 @@ namespace RestWebServerLauncher
             _web = new WebServer(new IPEndPoint(IPAddress.Any, 2200));
             _count = 0;
 
-            _web.RegisterStaticRoute("GET", "/messages", _ => new RestResponse(HttpStatusCode.OK, ListMessages()));
-            _web.RegisterStaticRoute("POST", "/messages", ctx => new RestResponse(HttpStatusCode.Created, AddMessage(ctx.Payload)));
+            _web.RegisterStaticRoute("GET", "/messages", _ => new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(ListMessages())));
+            _web.RegisterStaticRoute("POST", "/messages", ctx => new RestResponse(HttpStatusCode.Created, JsonConvert.SerializeObject(AddMessage(ctx.Payload))));
             _web.RegisterResourceRoute("PUT", "/messages/%", ctx =>
             {
                 int id = ParseIntOrZero(ctx.Resources[0]);
@@ -55,7 +56,7 @@ namespace RestWebServerLauncher
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid message id.");
 
                 var text = GetMessage(id);
-                return new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK, text ?? string.Empty);
+                return new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK, JsonConvert.SerializeObject(text) ?? string.Empty);
             });
         }
 
@@ -71,19 +72,19 @@ namespace RestWebServerLauncher
         public void Stop()
             => _web.Stop();
 
-        private string ListMessages()
-            => "[" + String.Join(',', _messages.Select(kvp => $"\"{kvp.Key}\":\"{kvp.Value}\"")) + "]"; // non-attempt at json
+        private Dictionary<int, string> ListMessages()
+            => _messages;
 
         private string? GetMessage(int id)
             => _messages.ContainsKey(id) ? _messages[id] : null;
 
-        private string AddMessage(string text)
+        private int AddMessage(string text)
         {
             lock (_messages)
             {
                 while (_messages.ContainsKey(++_count)) { }
                 _messages[_count] = text;
-                return _count.ToString();
+                return _count;
             }
         }
 
