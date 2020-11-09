@@ -130,7 +130,7 @@ namespace RestWebServer
                 Trace.TraceInformation($"Starting to process incoming request from {connection.Client.RemoteEndPoint}.");
                 // reader and writer automatically get closed
                 using var reader = new StreamReader(connection.GetStream());
-                using var writer = new StreamWriter(connection.GetStream());
+                using var writer = new StreamWriter(connection.GetStream()) { NewLine = "\r\n" };
 
                 var firstLine = await reader.ReadLineAsync();
 
