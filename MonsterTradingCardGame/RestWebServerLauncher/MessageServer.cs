@@ -14,7 +14,7 @@ namespace RestWebServerLauncher
     public class MessageServer
     {
         private readonly Dictionary<int, string> _messages;
-        private readonly WebServer _web;
+        private readonly IWebServer _web;
         private volatile int _count;
 
         /// <summary>
