@@ -178,21 +178,24 @@ namespace RestWebServer
                     if (String.IsNullOrEmpty(line))
                         break;
 
-                    var parts = line.Split(':');
+                    var delimiterPos = line.IndexOf(':');
 
-                    // check for invalid length
-                    if (parts.Length < 2)
+                    // check for no delimiter
+                    if (delimiterPos < 0)
                         continue;
 
+                    var key = line[..delimiterPos];
+                    var value = line[(delimiterPos + 1)..].Trim(' ');
+
                     // check for length of request
-                    if (String.Compare(parts[0], "Content-Length", StringComparison.InvariantCultureIgnoreCase) == 0
-                        && !int.TryParse(parts[1], out requestLength))
+                    if (String.Compare(key, "Content-Length", StringComparison.InvariantCultureIgnoreCase) == 0
+                        && !int.TryParse(value, out requestLength))
                     {
                         await WriteHttpErrorToStream(writer, HttpStatusCode.LengthRequired);
                         return;
                     }
 
-                    headers[parts[0]] = String.Join(":", parts[1..]).Trim(' ');
+                    headers[key] = value;
                 }
 
                 string body = string.Empty;
@@ -208,6 +211,7 @@ namespace RestWebServer
                 }
 
                 var requestContext = new RequestContext(verb, route, resources, headers, body);
+                Trace.TraceInformation($"Invoking request handler for {verb} {route}.");
 
                 // invoke handler and send response
                 try
