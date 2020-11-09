@@ -11,9 +11,16 @@ using System.Threading.Tasks;
 namespace RestWebServer
 {
     /// <summary>
-    /// A basic REST-capable web server using <see cref="TcpListener"/>.
+    /// Encapsulates a handler for a REST request.
     /// </summary>
-    public class WebServer
+    /// <param name="requestContext">Context of the request.</param>
+    /// <returns>Response to the request.</returns>
+    public delegate Task<RestResponse> RequestHandler(RequestContext requestContext);
+
+    /// <summary>
+    /// A basic, asynchronous REST-capable web server using <see cref="TcpListener"/>.
+    /// </summary>
+    public class WebServer : IWebServer
     {
         private readonly TcpListener _listener;
         private readonly Thread _listenerThread;
@@ -25,13 +32,6 @@ namespace RestWebServer
         /// Used for marking a resource part in a URL.
         /// </summary>
         public const string ResourceMarker = "%";
-
-        /// <summary>
-        /// Encapsulates a handler for a REST request.
-        /// </summary>
-        /// <param name="requestContext">Context of the request.</param>
-        /// <returns>Response to the request.</returns>
-        public delegate Task<RestResponse> RequestHandler(RequestContext requestContext);
 
         /// <summary>
         /// Initializes a new instance of the <see cref="WebServer"/> class with no registered routes.
@@ -46,9 +46,7 @@ namespace RestWebServer
             _resourceHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
         }
 
-        /// <summary>
-        /// Starts listening for incoming connections and processing them.
-        /// </summary>
+        /// <inheritdoc/>
         public void Start()
         {
             _listening = true;
@@ -56,24 +54,14 @@ namespace RestWebServer
             _listenerThread.Start();
         }
 
-        /// <summary>
-        /// Stops listening for incoming connections.
-        /// Any connections that have already started processing will continue.
-        /// Connections that are currently waiting in the queue will be abandoned.
-        /// </summary>
+        /// <inheritdoc/>
         public void Stop()
         {
             _listener.Stop();
             _listening = false;
         }
 
-        /// <summary>
-        /// Registers a handler for a static route.
-        /// Static routes do not contain resources.
-        /// </summary>
-        /// <param name="verb">The HTTP verb.</param>
-        /// <param name="route">The path of the URL.</param>
-        /// <param name="handler">The handler for the request.</param>
+        /// <inheritdoc/>
         public void RegisterStaticRoute(string verb, string route, RequestHandler handler)
         {
             if (_listening)
@@ -88,13 +76,7 @@ namespace RestWebServer
             _staticHandlers[route][verb] = handler;
         }
 
-        /// <summary>
-        /// Registers a handler for a route that references resources.
-        /// Resources are marked with <see cref="ResourceMarker"/>.
-        /// </summary>
-        /// <param name="verb">The HTTP verb.</param>
-        /// <param name="route">The path of the URL.</param>
-        /// <param name="handler">The handler for the request.</param>
+        /// <inheritdoc/>
         public void RegisterResourceRoute(string verb, string route, RequestHandler handler)
         {
             if (_listening)
@@ -109,6 +91,10 @@ namespace RestWebServer
             _resourceHandlers[route][verb] = handler;
         }
 
+        /// <summary>
+        /// Main loop for accepting incoming connections.
+        /// Launches <see cref="RunSingle(TcpClient)"/> for each request.
+        /// </summary>
         private void Run()
         {
             Trace.TraceInformation("Listening thread has started listening for incoming connections.");
@@ -123,6 +109,10 @@ namespace RestWebServer
             Trace.TraceInformation("Listening thread has stopped listening for incoming connections.");
         }
 
+        /// <summary>
+        /// General handler for parsing incoming requests, invoking the respective handlers and returning responses.
+        /// </summary>
+        /// <param name="connection">Connection to the client.</param>
         private async Task RunSingle(TcpClient connection)
         {
             try
@@ -188,7 +178,7 @@ namespace RestWebServer
                     var value = line[(delimiterPos + 1)..].Trim(' ');
 
                     // check for length of request
-                    if (String.Compare(key, "Content-Length", StringComparison.InvariantCultureIgnoreCase) == 0
+                    if (String.Compare(key, "Content-Length", StringComparison.OrdinalIgnoreCase) == 0
                         && !int.TryParse(value, out requestLength))
                     {
                         await WriteHttpErrorToStream(writer, HttpStatusCode.LengthRequired);
@@ -247,6 +237,11 @@ namespace RestWebServer
             }
         }
 
+        /// <summary>
+        /// Helper method for generating errors and sending them to the client.
+        /// </summary>
+        /// <param name="writer">Writer for responding to the client.</param>
+        /// <param name="statusCode">Which HTTP status code to respond with.</param>
         private static async Task WriteHttpErrorToStream(StreamWriter writer, HttpStatusCode statusCode)
         {
             Trace.TraceWarning("Client-side error; StatusCode=" + statusCode);
@@ -256,6 +251,15 @@ namespace RestWebServer
             await writer.FlushAsync();
         }
 
+        /// <summary>
+        /// Helper method for finding the appropriate handler for a route.
+        /// </summary>
+        /// <remarks>
+        /// This method does not actually return a handler but rather a dictionary containing potential handlers.
+        /// </remarks>
+        /// <param name="route">The route whose handler is sought.</param>
+        /// <returns>Either a tuple containing the found handlers as well as
+        /// the extracted resource strings or <see langword="null"/>.</returns>
         private (Dictionary<string, RequestHandler> methodDict, string[] resources)? GetBestHandlerForRoute(string route)
         {
             // check whether the route is a known static route
