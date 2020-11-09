@@ -42,8 +42,8 @@ namespace RestWebServer
             _listener = new TcpListener(localEP);
             _listenerThread = new Thread(Run) { Name = "Listener Thread" };
             _listening = false;
-            _staticHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>();
-            _resourceHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>();
+            _staticHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
+            _resourceHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -83,7 +83,7 @@ namespace RestWebServer
                 throw new ArgumentException("This route has already been registered.");
 
             if (!_staticHandlers.ContainsKey(route))
-                _staticHandlers[route] = new Dictionary<string, RequestHandler>();
+                _staticHandlers[route] = new Dictionary<string, RequestHandler>(StringComparer.OrdinalIgnoreCase);
 
             _staticHandlers[route][verb] = handler;
         }
@@ -104,7 +104,7 @@ namespace RestWebServer
                 throw new ArgumentException("This route has already been registered.");
 
             if (!_resourceHandlers.ContainsKey(route))
-                _resourceHandlers[route] = new Dictionary<string, RequestHandler>();
+                _resourceHandlers[route] = new Dictionary<string, RequestHandler>(StringComparer.OrdinalIgnoreCase);
 
             _resourceHandlers[route][verb] = handler;
         }
