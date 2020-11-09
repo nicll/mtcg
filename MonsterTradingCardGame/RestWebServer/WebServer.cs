@@ -36,7 +36,7 @@ namespace RestWebServer
         /// <summary>
         /// Initializes a new instance of the <see cref="WebServer"/> class with no registered routes.
         /// </summary>
-        /// <param name="localEP"></param>
+        /// <param name="localEP">The endpoint to which to bind the listener.</param>
         public WebServer(IPEndPoint localEP)
         {
             _listener = new TcpListener(localEP);
