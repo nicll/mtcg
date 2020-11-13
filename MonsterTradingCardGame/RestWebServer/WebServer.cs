@@ -99,11 +99,21 @@ namespace RestWebServer
         {
             Trace.TraceInformation("Listening thread has started listening for incoming connections.");
 
-            while (_listening)
+            try
             {
-                var connection = _listener.AcceptTcpClient();
-                Task.Run(() => RunSingle(connection)).ConfigureAwait(false);
-                //new Thread(() => RunSingle(connection)) { Name = "Processing Thread" }.Start();
+                while (_listening)
+                {
+                    var connection = _listener.AcceptTcpClient();
+                    Task.Run(() => RunSingle(connection)).ConfigureAwait(false);
+                    //new Thread(() => RunSingle(connection)) { Name = "Processing Thread" }.Start();
+                }
+            }
+            catch (SocketException e)
+            {
+                if (e.SocketErrorCode == SocketError.Interrupted)
+                    Trace.TraceInformation("Listening thread was interrupted.");
+                else
+                    Trace.TraceWarning("Listening thread was stopped: " + e.SocketErrorCode);
             }
 
             Trace.TraceInformation("Listening thread has stopped listening for incoming connections.");
