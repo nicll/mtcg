@@ -21,10 +21,10 @@ namespace RestWebServerLauncher
         /// Initializes a new instance of the <see cref="MessageServer"/> class with routes accessible over HTTP
         /// for listing, reading, writing, updating and deleting messages.
         /// </summary>
-        public MessageServer()
+        public MessageServer(IWebServer webServer)
         {
             _messages = new Dictionary<int, string>();
-            _web = new WebServer(new IPEndPoint(IPAddress.Any, 2200));
+            _web = webServer;
             _count = 0;
 
             _web.RegisterStaticRoute("GET", "/messages", _ => Task.FromResult(new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(ListMessages()))));
