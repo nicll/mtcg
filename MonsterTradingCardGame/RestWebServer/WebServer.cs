@@ -20,7 +20,7 @@ namespace RestWebServer
     /// <summary>
     /// A basic, asynchronous REST-capable web server using <see cref="TcpListener"/>.
     /// </summary>
-    public class WebServer : IWebServer
+    public class WebServer : IWebServer, IDisposable
     {
         private readonly TcpListener _listener;
         private readonly Thread _listenerThread;
@@ -311,6 +311,12 @@ namespace RestWebServer
 
                 return resources.ToArray();
             }
+        }
+
+        public void Dispose()
+        {
+            _listening = false;
+            _listener.Start();
         }
     }
 }
