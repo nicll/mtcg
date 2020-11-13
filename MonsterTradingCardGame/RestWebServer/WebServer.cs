@@ -22,7 +22,7 @@ namespace RestWebServer
     /// </summary>
     public class WebServer : IWebServer, IDisposable
     {
-        private readonly TcpListener _listener;
+        private readonly ITcpListener _listener;
         private readonly Thread _listenerThread;
         private volatile bool _listening;
         private readonly Dictionary<string, Dictionary<string, RequestHandler>> _staticHandlers;
@@ -39,7 +39,23 @@ namespace RestWebServer
         /// <param name="localEP">The endpoint to which to bind the listener.</param>
         public WebServer(IPEndPoint localEP)
         {
-            _listener = new TcpListener(localEP);
+            _listener = new TcpListenerWrapper(new TcpListener(localEP));
+            _listenerThread = new Thread(Run) { Name = "Listener Thread" };
+            _listening = false;
+            _staticHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
+            _resourceHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        /// <summary>
+        /// Initializes a new instance of the <see cref="WebServer"/> class with no registered routes.
+        /// </summary>
+        /// <remarks>
+        /// This constructor exists for testing purposes.
+        /// </remarks>
+        /// <param name="listener">The custom listener.</param>
+        public WebServer(ITcpListener listener)
+        {
+            _listener = listener;
             _listenerThread = new Thread(Run) { Name = "Listener Thread" };
             _listening = false;
             _staticHandlers = new Dictionary<string, Dictionary<string, RequestHandler>>(StringComparer.OrdinalIgnoreCase);
@@ -123,14 +139,14 @@ namespace RestWebServer
         /// General handler for parsing incoming requests, invoking the respective handlers and returning responses.
         /// </summary>
         /// <param name="connection">Connection to the client.</param>
-        private async Task RunSingle(TcpClient connection)
+        private async Task RunSingle(ITcpClient connection)
         {
             try
             {
-                Trace.TraceInformation($"Starting to process incoming request from {connection.Client.RemoteEndPoint}.");
+                Trace.TraceInformation($"Starting to process incoming request from {connection.RemoteEndPoint}.");
                 // reader and writer automatically get closed
-                using var reader = new StreamReader(connection.GetStream());
-                using var writer = new StreamWriter(connection.GetStream()) { NewLine = "\r\n" };
+                using var reader = new StreamReader(connection.GetReadStream());
+                using var writer = new StreamWriter(connection.GetWriteStream()) { NewLine = "\r\n" };
 
                 var firstLine = await reader.ReadLineAsync();
 
@@ -218,11 +234,16 @@ namespace RestWebServer
                 {
                     var response = await handler(requestContext);
                     await writer.WriteLineAsync("HTTP/1.1 " + (int)response.StatusCode + " " + response.StatusCode);
+
                     foreach (var header in response.Headers)
                         await writer.WriteLineAsync(header.Key + ": " + header.Value);
-                    await writer.WriteLineAsync("Content-Length: " + writer.Encoding.GetByteCount(response.Payload));
-                    await writer.WriteLineAsync();
-                    await writer.WriteAsync(response.Payload);
+
+                    if (response.Payload.Length > 0)
+                    {
+                        await writer.WriteLineAsync("Content-Length: " + writer.Encoding.GetByteCount(response.Payload));
+                        await writer.WriteLineAsync();
+                        await writer.WriteAsync(response.Payload);
+                    }
                     await writer.FlushAsync();
                 }
                 catch (Exception e)
