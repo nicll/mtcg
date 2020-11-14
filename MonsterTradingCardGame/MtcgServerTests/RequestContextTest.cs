@@ -5,6 +5,7 @@ using System.Collections.Generic;
 
 namespace MtcgServerTests
 {
+    [TestFixture]
     public class RequestContextTest
     {
         [Test]

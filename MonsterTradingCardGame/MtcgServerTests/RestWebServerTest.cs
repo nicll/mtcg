@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 
 namespace MtcgServerTests
 {
+    [TestFixture]
     public class RestWebServerTest
     {
         private WebServer _web;
