@@ -65,16 +65,16 @@ namespace RestWebServer
         /// <inheritdoc/>
         public void Start()
         {
-            _listening = true;
             _listener.Start();
+            _listening = true;
             _listenerThread.Start();
         }
 
         /// <inheritdoc/>
         public void Stop()
         {
-            _listener.Stop();
             _listening = false;
+            _listener.Stop();
         }
 
         /// <inheritdoc/>
@@ -130,6 +130,10 @@ namespace RestWebServer
                     Trace.TraceInformation("Listening thread was interrupted.");
                 else
                     Trace.TraceWarning("Listening thread was stopped: " + e.SocketErrorCode);
+            }
+            catch (InvalidOperationException) // might occur during testing, seems to be a race-condition
+            {
+                Trace.TraceWarning("Listening thread attempted to accept when not listening.");
             }
 
             Trace.TraceInformation("Listening thread has stopped listening for incoming connections.");
@@ -337,7 +341,7 @@ namespace RestWebServer
         public void Dispose()
         {
             _listening = false;
-            _listener.Start();
+            _listener.Stop();
         }
     }
 }
