@@ -2,7 +2,6 @@
 using RestWebServer;
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -57,7 +56,8 @@ namespace RestWebServerLauncher
                     return Task.FromResult(new RestResponse(HttpStatusCode.BadRequest, "Invalid message id."));
 
                 var text = GetMessage(id);
-                return Task.FromResult(new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK, text is null ? string.Empty : JsonConvert.SerializeObject(text)));
+                return Task.FromResult(new RestResponse(text is null ? HttpStatusCode.NotFound : HttpStatusCode.OK,
+                    text is null ? string.Empty : JsonConvert.SerializeObject(text)));
             });
         }
 
