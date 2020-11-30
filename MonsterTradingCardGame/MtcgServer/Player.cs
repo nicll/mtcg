@@ -8,8 +8,8 @@ namespace MtcgServer
     /// </summary>
     public class Player
     {
-        private readonly List<Card> _stack = new List<Card>();
-        private readonly List<Card> _deck = new List<Card>(4);
+        private readonly List<ICard> _stack = new List<ICard>();
+        private readonly List<ICard> _deck = new List<ICard>(4);
 
         public Guid ID { get; }
 
@@ -23,9 +23,9 @@ namespace MtcgServer
 
         public int Coins { get; }
 
-        public IReadOnlyCollection<Card> Stack => _stack.AsReadOnly();
+        public IReadOnlyCollection<ICard> Stack => _stack.AsReadOnly();
 
-        public IReadOnlyCollection<Card> Deck => _deck.AsReadOnly();
+        public IReadOnlyCollection<ICard> Deck => _deck.AsReadOnly();
 
         public int ELO { get; }
 
@@ -34,7 +34,7 @@ namespace MtcgServer
         public int Losses { get; }
 
         public Player(Guid id, string name, byte[] passwordHash, string statusText, string emoticonText, int coins,
-            IReadOnlyCollection<Card> stack, IReadOnlyCollection<Card> deck, int elo, int wins, int losses)
+            IReadOnlyCollection<ICard> stack, IReadOnlyCollection<ICard> deck, int elo, int wins, int losses)
         {
             ID = id;
             Name = name;
@@ -42,14 +42,14 @@ namespace MtcgServer
             StatusText = statusText;
             EmoticonText = emoticonText;
             Coins = coins;
-            _stack = new List<Card>(stack);
-            _deck = new List<Card>(deck);
+            _stack = new List<ICard>(stack);
+            _deck = new List<ICard>(deck);
             ELO = elo;
             Wins = wins;
             Losses = losses;
         }
 
         internal static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
-            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, new Card[0], new Card[0], 100, 0, 0);
+            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, new ICard[0], new ICard[0], 100, 0, 0);
     }
 }

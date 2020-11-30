@@ -6,6 +6,6 @@ namespace MtcgServer.Cards.MonsterCards
     {
         public override ElementType Type => ElementType.Normal;
 
-        public override int Damage => 16;
+        public override int Damage { get; init; } = 16;
     }
 }

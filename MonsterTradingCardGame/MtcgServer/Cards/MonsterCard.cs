@@ -2,7 +2,7 @@
 
 namespace MtcgServer.Cards
 {
-    public abstract class MonsterCard : Card
+    public abstract class MonsterCard : CardBase
     {
     }
 }

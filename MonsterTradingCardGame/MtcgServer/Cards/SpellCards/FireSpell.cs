@@ -6,6 +6,6 @@ namespace MtcgServer.Cards.SpellCards
     {
         public override ElementType Type => ElementType.Fire;
 
-        public override int Damage => 20;
+        public override int Damage { get; init; } = 20;
     }
 }

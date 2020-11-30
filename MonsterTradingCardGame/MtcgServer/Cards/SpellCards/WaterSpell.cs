@@ -6,9 +6,9 @@ namespace MtcgServer.Cards.SpellCards
     {
         public override ElementType Type => ElementType.Water;
 
-        public override int Damage => 20;
+        public override int Damage { get; init; } = 20;
 
-        protected override int _CalculateDamage(in Card other)
+        protected override int _CalculateDamage(in ICard other)
             => other is MonsterCards.Knight
                 ? 9999 // drown knights instantly
                 : base._CalculateDamage(other);

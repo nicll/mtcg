@@ -2,13 +2,13 @@
 
 namespace MtcgServer
 {
-    public abstract class Card
+    public abstract class CardBase : ICard
     {
         public abstract ElementType Type { get; }
 
-        public abstract int Damage { get; }
+        public abstract int Damage { get; init; }
 
-        public int CalculateDamage(in Card other) => (Type, other.Type) switch
+        public int CalculateDamage(in ICard other) => (Type, other.Type) switch
         {
             (ElementType.Water,  ElementType.Fire)   => _CalculateDamage(other) * 2,
             (ElementType.Fire,   ElementType.Normal) => _CalculateDamage(other) * 2,
@@ -16,7 +16,7 @@ namespace MtcgServer
             _ => _CalculateDamage(other)
         };
 
-        protected virtual int _CalculateDamage(in Card other)
+        protected virtual int _CalculateDamage(in ICard other)
             => Damage;
     }
 }
