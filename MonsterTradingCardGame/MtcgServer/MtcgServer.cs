@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -9,21 +10,22 @@ namespace MtcgServer
     public class MtcgServer
     {
         private const string Pepper = "mtcg--";
+        private static readonly Random _rnd = new Random();
+        private readonly List<CardPackage> _packages;
         private readonly ConcurrentDictionary<Session, Guid> _sessions;
         private readonly List<Guid> _waiting;
         private readonly object _waitingLock;
         private readonly IDatabase _db;
         private readonly IMatchmaker _mm;
-        private readonly IScoreboard _sb;
 
-        public MtcgServer(IDatabase database, IMatchmaker matchmaker, IScoreboard scoreboard)
+        public MtcgServer(IDatabase database, IMatchmaker matchmaker)
         {
+            _packages = new List<CardPackage>();
             _sessions = new ConcurrentDictionary<Session, Guid>();
             _waiting = new List<Guid>();
             _waitingLock = new object();
             _db = database;
             _mm = matchmaker;
-            _sb = scoreboard;
         }
 
         /// <summary>
@@ -41,7 +43,7 @@ namespace MtcgServer
             // create new player object and save it in the database
             var newId = Guid.NewGuid();
             var passHash = HashPlayerPassword(newId, pass);
-            var newPlayer = Player.CreateNewPlayer(newId, user, passHash);
+            var newPlayer = CreateNewPlayer(newId, user, passHash);
             _db.SavePlayer(newPlayer, PlayerChange.Everything);
 
             // also create a new login session and return it
@@ -131,20 +133,66 @@ namespace MtcgServer
             return _db.ReadPlayer(playerId);
         }
 
-        public void BuyPackage(Session session)
+        /// <summary>
+        /// Makes a player buy randomly chosen cards.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        public void BuyRandomCards(Session session, int price = 5)
         {
-            if (!(GetPlayer(session) is Player player))
+            if (GetPlayer(session) is not Player player)
                 return;
 
-            if (player.Coins - 5 < 0)
+            if (player.Coins - price < 0)
                 return;
 
-            // this would look nicer in C# 9
-            var newPlayer = new Player(player.ID, player.Name, player.PasswordHash,
-                player.StatusText, player.EmoticonText, player.Coins - 5,
-                player.Stack, player.Deck, player.ELO, player.Wins, player.Losses);
+            var newPlayer = player with { Coins = player.Coins - price };
+            RetrieveRandomCards(5).ForEach(c => newPlayer.Stack.Add(c));
 
-            // ToDo: add random cards to stack
+            _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
+        }
+
+        /// <summary>
+        /// Makes a player buy a randomly chosen package that they can afford.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        public void BuyRandomPackage(Session session)
+        {
+            if (GetPlayer(session) is not Player player)
+                return;
+
+            var possiblePackages = _packages.Where(p => p.Price <= player.Coins).ToArray();
+
+            if (possiblePackages.Length < 1)
+                return;
+
+            var pickedPackage = possiblePackages[_rnd.Next(possiblePackages.Length)];
+            var newPlayer = player with { Coins = player.Coins - pickedPackage.Price };
+
+            foreach (var card in pickedPackage.Cards)
+                newPlayer.Stack.Add(card);
+
+            _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
+        }
+
+        /// <summary>
+        /// Makes a player buy a specific package if they can afford it.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <param name="packageId">ID of the package.</param>
+        public void BuySpecificPackage(Session session, Guid packageId)
+        {
+            if (GetPlayer(session) is not Player player)
+                return;
+
+            var package = _packages.Find(p => p.Id == packageId);
+
+            if (package is null)
+                return;
+
+            var newPlayer = player with { Coins = player.Coins - package.Price };
+
+            foreach (var card in package.Cards)
+                newPlayer.Stack.Add(card);
 
             _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
         }
@@ -163,6 +211,45 @@ namespace MtcgServer
 
             playerId = Guid.Empty;
             return false;
+        }
+
+        /// <summary>
+        /// Creates a new player with default stats.
+        /// </summary>
+        /// <param name="id">ID of the player.</param>
+        /// <param name="name">Name of the player.</param>
+        /// <param name="passwordHash">Hashed password of the player.</param>
+        /// <returns></returns>
+        private static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
+            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 100, 0, 0);
+
+        /// <summary>
+        /// Registers a new package created by an admin.
+        /// </summary>
+        /// <param name="package">The new package.</param>
+        private void RegisterPackage(CardPackage package)
+            => _packages.Add(package);
+
+        /// <summary>
+        /// Retrieves the specified number of randomly chosen cards
+        /// from the existing packages.
+        /// </summary>
+        /// <param name="count"></param>
+        /// <returns>The randomly chosen cards.</returns>
+        private List<ICard> RetrieveRandomCards(int count)
+        {
+            if (_packages.Count == 0)
+                throw new InvalidOperationException("Tried to retrieve randomly chosen cards when none were defined.");
+
+            var cards = new List<ICard>(count);
+
+            for (int i = 0; i < count; ++i)
+            {
+                var package = _packages[_rnd.Next(_packages.Count)];
+                cards[i] = package.Cards[_rnd.Next(package.Cards.Count)];
+            }
+
+            return cards;
         }
 
         /// <summary>
