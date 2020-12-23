@@ -20,5 +20,8 @@ namespace MtcgServer
 
         protected virtual int _CalculateDamage(in ICard other)
             => Damage;
+
+        public override string ToString()
+            => GetType().Name + " (" + Type + ")";
     }
 }
