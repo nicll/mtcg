@@ -4,28 +4,38 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using static MtcgServer.Helpers.Random;
 
 namespace MtcgServer
 {
     public class MtcgServer
     {
         private const string Pepper = "mtcg--";
-        private static readonly Random _rnd = new Random();
         private readonly List<CardPackage> _packages;
         private readonly ConcurrentDictionary<Session, Guid> _sessions;
         private readonly List<Guid> _waiting;
-        private readonly object _waitingLock;
+        private readonly object _lobbyLock;
+        private volatile Player? _firstBattlingPlayer;
+        private volatile BattleResult? _btlResult;
+        private readonly SemaphoreSlim _invokeBattleLimiter, _invokeBattleExclusive, _invokeBattleHang;
         private readonly IDatabase _db;
         private readonly IMatchmaker _mm;
+        private readonly IBattleHandler _btl;
 
-        public MtcgServer(IDatabase database, IMatchmaker matchmaker)
+        public MtcgServer(IDatabase database, IMatchmaker matchmaker, IBattleHandler battleHandler)
         {
             _packages = new List<CardPackage>();
             _sessions = new ConcurrentDictionary<Session, Guid>();
             _waiting = new List<Guid>();
-            _waitingLock = new object();
+            _lobbyLock = new object();
+            _invokeBattleLimiter = new SemaphoreSlim(0, 2);
+            _invokeBattleExclusive = new SemaphoreSlim(0, 1);
+            _invokeBattleHang = new SemaphoreSlim(1, 1);
             _db = database;
             _mm = matchmaker;
+            _btl = battleHandler;
         }
 
         /// <summary>
@@ -34,17 +44,17 @@ namespace MtcgServer
         /// <param name="user">Username of the player.</param>
         /// <param name="pass">Password of the player.</param>
         /// <returns>Session of the player.</returns>
-        public Session? Register(string user, string pass)
+        public async ValueTask<Session?> Register(string user, string pass)
         {
             // check if a player with this name already exists
-            if (_db.SearchPlayer(user) != Guid.Empty)
+            if (await _db.SearchPlayer(user) != Guid.Empty)
                 return null;
 
             // create new player object and save it in the database
             var newId = Guid.NewGuid();
             var passHash = HashPlayerPassword(newId, pass);
             var newPlayer = CreateNewPlayer(newId, user, passHash);
-            _db.SavePlayer(newPlayer, PlayerChange.Everything);
+            await _db.SavePlayer(newPlayer, PlayerChange.Everything);
 
             // also create a new login session and return it
             var newSession = new Session();
@@ -58,16 +68,16 @@ namespace MtcgServer
         /// <param name="user">Username of the player.</param>
         /// <param name="pass">Password of the player.</param>
         /// <returns>Session of the player.</returns>
-        public Session? Login(string user, string pass)
+        public async ValueTask<Session?> Login(string user, string pass)
         {
             // get user from database
-            var playerId = _db.SearchPlayer(user);
+            var playerId = await _db.SearchPlayer(user);
 
             if (playerId == Guid.Empty)
                 return null;
 
             // get player object and password hash ready
-            var player = _db.ReadPlayer(playerId);
+            var player = await _db.ReadPlayer(playerId);
             var passHash = HashPlayerPassword(playerId, pass);
 
             // if hashes don't match don't create session
@@ -100,7 +110,7 @@ namespace MtcgServer
             if (!TryGetPlayerID(session, out Guid playerId))
                 return;
 
-            lock (_waitingLock)
+            lock (_lobbyLock)
             {
                 if (!_waiting.Contains(playerId))
                     _waiting.Add(playerId);
@@ -116,8 +126,57 @@ namespace MtcgServer
             if (!TryGetPlayerID(session, out Guid playerId))
                 return;
 
-            lock (_waitingLock)
+            lock (_lobbyLock)
                 _waiting.Remove(playerId);
+        }
+
+        /// <summary>
+        /// Causes a player to join a battle ASAP.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        public async ValueTask<BattleResult?> InvokeBattle(Session session)
+        {
+            if (!TryGetPlayerID(session, out Guid playerId))
+                return null;
+
+            var player = await _db.ReadPlayer(playerId);
+
+            if (player.Deck.Count != 5)
+                return null;
+
+            // only two taks may run simultaneously
+            await _invokeBattleLimiter.WaitAsync().ConfigureAwait(false);
+
+            // restrict to serialized execution
+            await _invokeBattleExclusive.WaitAsync();
+
+            if (_firstBattlingPlayer is null) // first player connects
+            {
+                _firstBattlingPlayer = player;
+                _invokeBattleExclusive.Release(); // second player may now join
+                System.Diagnostics.Debug.Assert(_invokeBattleHang.CurrentCount == 1);
+                await _invokeBattleHang.WaitAsync(); // wait until unlocked by second player
+
+                // invoked after second player finished
+                var resultCopy = _btlResult;
+                _firstBattlingPlayer = null;
+                _btlResult = null;
+
+                // let others continue
+                _invokeBattleExclusive.Release();
+                _invokeBattleLimiter.Release(2);
+
+                // finish first player
+                return resultCopy;
+            }
+
+            System.Diagnostics.Debug.Assert(_invokeBattleExclusive.CurrentCount == 0);
+            // finish second player
+            var result = _btlResult = _btl.RunBattle(player, _firstBattlingPlayer);
+
+            // let other player's task continue
+            _invokeBattleHang.Release();
+            return result;
         }
 
         /// <summary>
@@ -125,21 +184,28 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <returns>Information about the player or <see langword="null"/>.</returns>
-        public Player? GetPlayer(Session session)
+        public async ValueTask<Player?> GetPlayer(Session session)
         {
             if (!TryGetPlayerID(session, out Guid playerId))
                 return null;
 
-            return _db.ReadPlayer(playerId);
+            return await _db.ReadPlayer(playerId);
         }
+
+        /// <summary>
+        /// Registers a new package created by an admin.
+        /// </summary>
+        /// <param name="package">The new package.</param>
+        public void RegisterPackage(CardPackage package)
+            => _packages.Add(package);
 
         /// <summary>
         /// Makes a player buy randomly chosen cards.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public void BuyRandomCards(Session session, int price = 5)
+        public async ValueTask BuyRandomCards(Session session, int price = 5)
         {
-            if (GetPlayer(session) is not Player player)
+            if (await GetPlayer(session) is not Player player)
                 return;
 
             if (player.Coins - price < 0)
@@ -148,16 +214,16 @@ namespace MtcgServer
             var newPlayer = player with { Coins = player.Coins - price };
             RetrieveRandomCards(5).ForEach(c => newPlayer.Stack.Add(c));
 
-            _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
+            await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
 
         /// <summary>
         /// Makes a player buy a randomly chosen package that they can afford.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public void BuyRandomPackage(Session session)
+        public async ValueTask BuyRandomPackage(Session session)
         {
-            if (GetPlayer(session) is not Player player)
+            if (await GetPlayer(session) is not Player player)
                 return;
 
             var possiblePackages = _packages.Where(p => p.Price <= player.Coins).ToArray();
@@ -171,7 +237,7 @@ namespace MtcgServer
             foreach (var card in pickedPackage.Cards)
                 newPlayer.Stack.Add(card);
 
-            _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
+            await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
 
         /// <summary>
@@ -179,9 +245,9 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <param name="packageId">ID of the package.</param>
-        public void BuySpecificPackage(Session session, Guid packageId)
+        public async ValueTask BuySpecificPackage(Session session, Guid packageId)
         {
-            if (GetPlayer(session) is not Player player)
+            if (await GetPlayer(session) is not Player player)
                 return;
 
             var package = _packages.Find(p => p.Id == packageId);
@@ -194,7 +260,7 @@ namespace MtcgServer
             foreach (var card in package.Cards)
                 newPlayer.Stack.Add(card);
 
-            _db.SavePlayer(newPlayer, PlayerChange.Coins | PlayerChange.Stack);
+            await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
 
         /// <summary>
@@ -222,13 +288,6 @@ namespace MtcgServer
         /// <returns></returns>
         private static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
             => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 100, 0, 0);
-
-        /// <summary>
-        /// Registers a new package created by an admin.
-        /// </summary>
-        /// <param name="package">The new package.</param>
-        private void RegisterPackage(CardPackage package)
-            => _packages.Add(package);
 
         /// <summary>
         /// Retrieves the specified number of randomly chosen cards
