@@ -1,13 +1,18 @@
 ﻿using System;
+using System.Threading.Tasks;
 
 namespace MtcgServer
 {
     public interface IDatabase
     {
-        Guid SearchPlayer(string name);
+        ValueTask<Guid> SearchPlayer(string name);
 
-        Player ReadPlayer(Guid id);
+        ValueTask<Player?> ReadPlayer(Guid id);
 
-        void SavePlayer(Player player, PlayerChange changes);
+        ValueTask SavePlayer(Player player, PlayerChange changes);
+
+        ValueTask<ICard?> ReadCard(Guid id);
+
+        ValueTask CreateCardInstance(ICard card);
     }
 }
