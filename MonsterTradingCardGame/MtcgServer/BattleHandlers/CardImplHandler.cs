@@ -7,6 +7,11 @@ namespace MtcgServer.BattleHandlers
 {
     public class CardImplHandler : IBattleHandler
     {
+        private readonly IDatabase _db;
+
+        public CardImplHandler(IDatabase db)
+            => _db = db;
+
         public BattleResult RunBattle(Player p1, Player p2)
         {
             List<string> log = new();
@@ -39,10 +44,13 @@ namespace MtcgServer.BattleHandlers
             // only one player has cards left
             if (p1Deck.Any() != p2Deck.Any())
             {
-                if (p1Deck.Any())
-                    return new BattleResult.Winner(p1, p2, log);
+                var (winner, loser) = p1Deck.Any() ? (p1, p2) : (p2, p1);
 
-                return new BattleResult.Winner(p2, p1, log);
+                // save changes
+                _db.SavePlayer(winner with { Wins = winner.Wins + 1, ELO = winner.ELO + 4 }, PlayerChange.AfterGame);
+                _db.SavePlayer(loser with { Losses = loser.Losses + 1, ELO = loser.ELO - 4 }, PlayerChange.AfterGame);
+
+                return new BattleResult.Winner(winner, loser, log);
             }
 
             // both players have cards left
