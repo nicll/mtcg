@@ -4,6 +4,8 @@ namespace MtcgServer
 {
     public abstract class CardBase : ICard
     {
+        public Guid Id { get; init; }
+
         public abstract ElementType Type { get; }
 
         public abstract int Damage { get; init; }
