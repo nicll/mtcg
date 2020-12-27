@@ -44,7 +44,7 @@ namespace MtcgServer
         /// <param name="user">Username of the player.</param>
         /// <param name="pass">Password of the player.</param>
         /// <returns>Session of the player.</returns>
-        public async ValueTask<Session?> Register(string user, string pass)
+        public async Task<Session?> Register(string user, string pass)
         {
             // check if a player with this name already exists
             if (await _db.SearchPlayer(user) != Guid.Empty)
@@ -68,7 +68,7 @@ namespace MtcgServer
         /// <param name="user">Username of the player.</param>
         /// <param name="pass">Password of the player.</param>
         /// <returns>Session of the player.</returns>
-        public async ValueTask<Session?> Login(string user, string pass)
+        public async Task<Session?> Login(string user, string pass)
         {
             // get user from database
             var playerId = await _db.SearchPlayer(user);
@@ -134,14 +134,14 @@ namespace MtcgServer
         /// Causes a player to join a battle ASAP.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public async ValueTask<BattleResult?> InvokeBattle(Session session)
+        public async Task<BattleResult?> InvokeBattle(Session session)
         {
             if (!TryGetPlayerID(session, out Guid playerId))
                 return null;
 
             var player = await _db.ReadPlayer(playerId);
 
-            if (player.Deck.Count != 5)
+            if (player?.Deck.Count != 5)
                 return null;
 
             // only two taks may run simultaneously
@@ -184,7 +184,7 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <returns>Information about the player or <see langword="null"/>.</returns>
-        public async ValueTask<Player?> GetPlayer(Session session)
+        public async Task<Player?> GetPlayer(Session session)
         {
             if (!TryGetPlayerID(session, out Guid playerId))
                 return null;
@@ -203,7 +203,7 @@ namespace MtcgServer
         /// Makes a player buy randomly chosen cards.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public async ValueTask BuyRandomCards(Session session, int price = 5)
+        public async Task BuyRandomCards(Session session, int price = 5)
         {
             if (await GetPlayer(session) is not Player player)
                 return;
@@ -221,7 +221,7 @@ namespace MtcgServer
         /// Makes a player buy a randomly chosen package that they can afford.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public async ValueTask BuyRandomPackage(Session session)
+        public async Task BuyRandomPackage(Session session)
         {
             if (await GetPlayer(session) is not Player player)
                 return;
@@ -245,7 +245,7 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <param name="packageId">ID of the package.</param>
-        public async ValueTask BuySpecificPackage(Session session, Guid packageId)
+        public async Task BuySpecificPackage(Session session, Guid packageId)
         {
             if (await GetPlayer(session) is not Player player)
                 return;

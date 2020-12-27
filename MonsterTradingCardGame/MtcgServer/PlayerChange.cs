@@ -2,9 +2,13 @@
 
 namespace MtcgServer
 {
+    /// <summary>
+    /// Tracks the changes made to a player.
+    /// </summary>
     [Flags]
     public enum PlayerChange : ushort
     {
+        // main values
         Name =          1 << 0,
         Password =      1 << 1,
         StatusText =    1 << 2,
@@ -16,10 +20,15 @@ namespace MtcgServer
         Wins =          1 << 8,
         Losses =        1 << 9,
 
+        // combinations for usual events
         AfterGame = ELO | Wins | Losses,
         AfterBuyPackage = Stack | Coins,
+        ModifiedStack = Stack,
         ModifiedDeck = Deck,
 
-        Everything = (1 << 10) - 1
+        // additional helpers
+        None = 0,
+        Everything = (1 << 10) - 1,
+        UsersMask = Everything ^ Stack ^ Deck
     }
 }

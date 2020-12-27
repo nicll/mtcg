@@ -14,15 +14,15 @@ namespace MtcgServerTests
         public void Setup()
         {
             _server = new MtcgServer.MtcgServer(null, null, null);
-            _session = _server.Login(DemoUserName, DemoUserPass);
+            _session = _server.Login(DemoUserName, DemoUserPass).Result;
         }
 
         [Test]
         public void TestGetPlayer()
         {
-            var player = _server.GetPlayer(_session);
+            var player = _server.GetPlayer(_session).Result;
 
-            Assert.AreEqual(DemoUserId, player.ID);
+            Assert.AreEqual(DemoUserId, player.Id);
             Assert.AreEqual(DemoUserName, player.Name);
         }
     }

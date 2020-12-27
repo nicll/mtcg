@@ -25,6 +25,7 @@ namespace MtcgServer.BattleHandlers
             // while both still have cards remaining and < 100 rounds
             for (int round = 0; round < 100 && p1Deck.Any() && p2Deck.Any(); ++round)
             {
+                log.Add("Round #" + (round + 1) + ":");
                 var result = RunRound(p1Deck, p2Deck, log);
 
                 if (result.HasValue && result is var (card, from, to))

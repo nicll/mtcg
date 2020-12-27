@@ -4,13 +4,23 @@ using System.Text;
 
 namespace MtcgServer
 {
+    /// <summary>
+    /// Contains the result of a battle.
+    /// </summary>
     public abstract class BattleResult
     {
+        /// <summary>
+        /// Contains descriptions for each step that happend during the battle.
+        /// </summary>
         public IList<string> LogEntries { get; }
 
         protected BattleResult(IList<string> log)
             => LogEntries = log;
 
+        /// <summary>
+        /// Combines all entries in <see cref="LogEntries"/> into a single string.
+        /// </summary>
+        /// <returns>Combined log entries.</returns>
         public override string ToString()
         {
             var sb = new StringBuilder();
@@ -22,6 +32,9 @@ namespace MtcgServer
             return sb.ToString();
         }
 
+        /// <summary>
+        /// A battle result containing a winning and a losing player.
+        /// </summary>
         public class Winner : BattleResult
         {
             public Player WinningPlayer { get; }
@@ -39,6 +52,9 @@ namespace MtcgServer
                     + Environment.NewLine + base.ToString();
         }
 
+        /// <summary>
+        /// A battle result caused by a draw.
+        /// </summary>
         public class Draw : BattleResult
         {
             public Draw(IList<string> log) : base(log)
