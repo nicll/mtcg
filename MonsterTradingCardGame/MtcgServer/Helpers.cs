@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace MtcgServer
 {
@@ -34,6 +35,29 @@ namespace MtcgServer
                 var card = ChooseRandomCard(cards);
                 cards.Remove(card);
                 return card;
+            }
+
+            /// <summary>
+            /// Chooses a random element from a collection of available elements.
+            /// </summary>
+            /// <typeparam name="T">Element type.</typeparam>
+            /// <param name="collection">The collection of available elements.</param>
+            /// <returns>The chosen element.</returns>
+            internal static T ChooseRandom<T>(ICollection<T> collection)
+                => collection.ElementAt(_rnd.Next(collection.Count));
+
+            /// <summary>
+            /// Chooses a random element from a collection of available elements
+            /// and removes it from the collection. Then returns the chosen element.
+            /// </summary>
+            /// <typeparam name="T">Element type.</typeparam>
+            /// <param name="collection">The collection of available elements.</param>
+            /// <returns>The chosen element.</returns>
+            internal static T PopRandom<T>(ICollection<T> collection)
+            {
+                var element = ChooseRandom(collection);
+                collection.Remove(element);
+                return element;
             }
         }
 
