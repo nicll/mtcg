@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Text;
 using System.Threading.Tasks;
 using Npgsql;
 
@@ -9,11 +10,29 @@ namespace MtcgServer.Databases.Postgres
     {
         private readonly string _connectionString;
 
+        private static readonly Dictionary<PlayerChange, string> PlayerChangeTranslation = new()
+        {
+            { PlayerChange.Name,        "name"      },
+            { PlayerChange.Password,    "pass_hash" },
+            { PlayerChange.StatusText,  "statusmsg" },
+            { PlayerChange.EmoticonText,"emoticon"  },
+            //{ PlayerChange.Stack,       null!       },
+            //{ PlayerChange.Deck,        null!       },
+            { PlayerChange.Coins,       "coins"     },
+            { PlayerChange.ELO,         "elo"       },
+            { PlayerChange.Wins,        "wins"      },
+            { PlayerChange.Losses,      "losses"    }
+        };
+
         static PostgreSqlDatabase()
         {
             // maps the locally defined enum ElementType to the one defined in the database
             NpgsqlConnection.GlobalTypeMapper.MapEnum<ElementType>("element_type");
             // as monster_type does not have a locally defined equivalent we have to map is manually
+
+            // internally used structures
+            NpgsqlConnection.GlobalTypeMapper.MapEnum<CardRequirementType>("card_req_types");
+            NpgsqlConnection.GlobalTypeMapper.MapComposite<CardRequirement>("card_req");
         }
 
         public PostgreSqlDatabase(string connectionString)
@@ -21,9 +40,26 @@ namespace MtcgServer.Databases.Postgres
             _connectionString = connectionString;
         }
 
-        public async ValueTask<Player?> ReadPlayer(Guid id)
+        public async Task CreatePlayer(Player player)
         {
-            using var conn = OpenConnection();
+            using var conn = await OpenConnection();
+            var cmd = new NpgsqlCommand("INSERT INTO users VALUES (@id, @name, @statusmsg, @emoticon, @coins, @elo, @wins, @losses, @pass_hash)", conn);
+            cmd.Parameters.AddWithValue("@id", player.Id);
+            cmd.Parameters.AddWithValue("@name", player.Name);
+            cmd.Parameters.AddWithValue("@statusmsg", player.StatusText);
+            cmd.Parameters.AddWithValue("@emoticon", player.EmoticonText);
+            cmd.Parameters.AddWithValue("@coins", player.Coins);
+            cmd.Parameters.AddWithValue("@elo", player.ELO);
+            cmd.Parameters.AddWithValue("@wins", player.Wins);
+            cmd.Parameters.AddWithValue("@losses", player.Losses);
+            cmd.Parameters.AddWithValue("@pass_hash", player.PasswordHash);
+            await cmd.PrepareAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<Player?> ReadPlayer(Guid id)
+        {
+            using var conn = await OpenConnection();
             string name, statusText, emoticon;
             byte[] pwHash;
             int coins, elo, wins, losses;
@@ -83,14 +119,100 @@ namespace MtcgServer.Databases.Postgres
             return new Player(id, name, pwHash, statusText, emoticon, coins, stackCards, deckCards, elo, wins, losses);
         }
 
-        public async ValueTask SavePlayer(Player player, PlayerChange changes)
+        public async Task SavePlayer(Player player, PlayerChange changes)
         {
-            throw new NotImplementedException();
+            using var conn = await OpenConnection();
+            using var trans = await conn.BeginTransactionAsync();
+
+            // changes made to player object itself
+            if ((changes & PlayerChange.UsersMask) != PlayerChange.None)
+            {
+                using var cmd = new NpgsqlCommand() { Connection = conn, Transaction = trans };
+                StringBuilder sb = new("UPDATE player SET");
+
+                foreach (var kvp in PlayerChangeTranslation)
+                {
+                    if (!changes.HasFlag(kvp.Key))
+                        continue;
+
+                    sb.Append(' ').Append(kvp.Value).Append('=').Append(kvp.Key switch
+                    {
+                        PlayerChange.Name => player.Name,
+                        PlayerChange.Password => player.PasswordHash,
+                        PlayerChange.StatusText => player.StatusText,
+                        PlayerChange.EmoticonText => player.EmoticonText,
+                        PlayerChange.Coins => player.Coins,
+                        PlayerChange.ELO => player.ELO,
+                        PlayerChange.Wins => player.Wins,
+                        PlayerChange.Losses => player.Losses,
+                        _ => throw new InvalidOperationException("Invalid PlayerChange for users: " + kvp.Key)
+                    }).Append(',');
+                }
+
+                --sb.Length; // last ','
+                sb.Append(" WHERE id = @id");
+                cmd.CommandText = sb.ToString();
+                cmd.Parameters.AddWithValue("@id", player.Id);
+                await cmd.PrepareAsync();
+                await cmd.ExecuteNonQueryAsync();
+            }
+
+            // cards must already exists in "cards" table when inserting here
+
+            // changes made to player's stack
+            if (changes.HasFlag(PlayerChange.Stack))
+            {
+                using (var clearCmd = new NpgsqlCommand("DELETE FROM stacks WHERE user_id = @id", conn, trans))
+                {
+                    clearCmd.Parameters.AddWithValue("@id", player.Id);
+                    await clearCmd.PrepareAsync();
+                    await clearCmd.ExecuteNonQueryAsync();
+                }
+
+                using (var addCmd = new NpgsqlCommand() { Connection = conn, Transaction = trans })
+                {
+                    StringBuilder sb = new("INSERT INTO stacks VALUES ");
+
+                    foreach (var card in player.Stack)
+                        sb.Append('(').Append(player.Id).Append(',').Append(card.Id).Append("),");
+
+                    --sb.Length; // last ','
+                    addCmd.CommandText = sb.ToString();
+                    await addCmd.PrepareAsync();
+                    System.Diagnostics.Debug.Assert(await addCmd.ExecuteNonQueryAsync() == player.Stack.Count);
+                }
+            }
+
+            // changes made to player's deck
+            if (changes.HasFlag(PlayerChange.Deck))
+            {
+                using (var clearCmd = new NpgsqlCommand("DELETE FROM decks WHERE user_id = @id", conn, trans))
+                {
+                    clearCmd.Parameters.AddWithValue("@id", player.Id);
+                    await clearCmd.PrepareAsync();
+                    await clearCmd.ExecuteNonQueryAsync();
+                }
+
+                using (var addCmd = new NpgsqlCommand() { Connection = conn, Transaction = trans })
+                {
+                    StringBuilder sb = new("INSERT INTO decks VALUES ");
+
+                    foreach (var card in player.Stack)
+                        sb.Append('(').Append(player.Id).Append(',').Append(card.Id).Append("),");
+
+                    --sb.Length; // last ','
+                    addCmd.CommandText = sb.ToString();
+                    await addCmd.PrepareAsync();
+                    System.Diagnostics.Debug.Assert(await addCmd.ExecuteNonQueryAsync() == player.Stack.Count);
+                }
+            }
+
+            await trans.CommitAsync();
         }
 
-        public async ValueTask<Guid> SearchPlayer(string name)
+        public async Task<Guid> SearchPlayer(string name)
         {
-            var conn = OpenConnection();
+            var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT id FROM users WHERE name = @name", conn);
             cmd.Parameters.AddWithValue("@name", name);
             await cmd.PrepareAsync();
@@ -103,9 +225,9 @@ namespace MtcgServer.Databases.Postgres
             return Guid.Empty;
         }
 
-        public async ValueTask<ICard?> ReadCard(Guid id)
+        public async Task<ICard?> ReadCard(Guid id)
         {
-            using var conn = OpenConnection();
+            using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT damage, element_type, monster_type FROM cards WHERE id = @id", conn);
             cmd.Parameters.AddWithValue("@id", id);
             await cmd.PrepareAsync();
@@ -124,9 +246,9 @@ namespace MtcgServer.Databases.Postgres
             return null;
         }
 
-        public async ValueTask CreateCardInstance(ICard card)
+        public async Task CreateCard(ICard card)
         {
-            using var conn = OpenConnection();
+            using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("INSERT INTO cards VALUES (@id, @damage, @element_type, @monster_type)", conn);
             cmd.Parameters.AddWithValue("@id", card.Id);
             cmd.Parameters.AddWithValue("@damage", card.Damage);
@@ -137,31 +259,118 @@ namespace MtcgServer.Databases.Postgres
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task<ICollection<(ICard, ICollection<ICardRequirement>)>> ReadStore()
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("SELECT e.card_id, c.damage, c.element_type, c.monster_type, e.reqs FROM store_entries e JOIN cards c ON e.card_id = c.id", conn);
+
+            var reader = await cmd.ExecuteReaderAsync();
+            List<(ICard, ICollection<ICardRequirement>)> entries = new();
+
+            while (reader.Read())
+            {
+                Guid id = reader.GetGuid(0);
+                int damage = reader.GetInt32(1);
+                var elementType = await reader.GetFieldValueAsync<ElementType>(2);
+                ICard card = await reader.GetFieldValueAsync<string>(3) switch // on monster_type
+                {
+                    "dragon"  => new Cards.MonsterCards.Dragon  { Id = id, Damage = damage },
+                    "fireelf" => new Cards.MonsterCards.FireElf { Id = id, Damage = damage },
+                    "goblin"  => new Cards.MonsterCards.Goblin  { Id = id, Damage = damage },
+                    "knight"  => new Cards.MonsterCards.Knight  { Id = id, Damage = damage },
+                    "kraken"  => new Cards.MonsterCards.Kraken  { Id = id, Damage = damage },
+                    "ork"     => new Cards.MonsterCards.Ork     { Id = id, Damage = damage },
+                    "wizard"  => new Cards.MonsterCards.Wizard  { Id = id, Damage = damage },
+                    "spell"   => elementType switch
+                    {
+                        ElementType.Normal => new Cards.SpellCards.NormalSpell { Id = id, Damage = damage },
+                        ElementType.Water  => new Cards.SpellCards.WaterSpell  { Id = id, Damage = damage },
+                        ElementType.Fire   => new Cards.SpellCards.FireSpell   { Id = id, Damage = damage },
+                        _ => throw new DatabaseException("Invalid element type for spell card: " + elementType)
+                    },
+                    var value => throw new DatabaseException("Invalid value for monster type: " + value)
+                };
+
+                var reqs = await reader.GetFieldValueAsync<CardRequirement[]>(4);
+                List<ICardRequirement> translatedReqs = new(reqs.Length);
+
+                foreach (var req in reqs)
+                {
+                    translatedReqs.Add(req.ReqType switch
+                    {
+                        CardRequirementType.ElementType => new CardRequirements.ElementTypeRequirement { Type = (ElementType)req.ReqValue },
+                        CardRequirementType.IsMonsterCard => new CardRequirements.IsMonsterCardRequirement(),
+                        CardRequirementType.IsSpellCard => new CardRequirements.IsSpellCardRequirement(),
+                        CardRequirementType.MinimumDamage => new CardRequirements.MinimumDamageRequirement { MinimumDamage = req.ReqValue },
+                        _ => throw new DatabaseException("Invalid card requirement type: " + req.ReqType)
+                    });
+                }
+
+                entries.Add((card, translatedReqs));
+            }
+
+            return entries;
+        }
+
+        public async Task AddToStore(Player owner, ICard card, ICollection<ICardRequirement> requirements)
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("INSERT INTO store_entries VALUES (@card_id, @user_id, @req_type, @reqs)", conn);
+            cmd.Parameters.AddWithValue("@card_id", card.Id);
+            cmd.Parameters.AddWithValue("@user_id", owner.Id);
+
+            List<CardRequirement> reqs = new(requirements.Count);
+            foreach (var req in requirements)
+            {
+                reqs.Add(req switch
+                {
+                    CardRequirements.ElementTypeRequirement r   => new CardRequirement { ReqType = CardRequirementType.ElementType,   ReqValue = (int)r.Type },
+                    CardRequirements.IsMonsterCardRequirement r => new CardRequirement { ReqType = CardRequirementType.IsMonsterCard, ReqValue = default },
+                    CardRequirements.IsSpellCardRequirement r   => new CardRequirement { ReqType = CardRequirementType.IsSpellCard,   ReqValue = default },
+                    CardRequirements.MinimumDamageRequirement r => new CardRequirement { ReqType = CardRequirementType.MinimumDamage, ReqValue = r.MinimumDamage },
+                    _ => throw new DatabaseException("Unknown card requirement: " + req.GetType().Name)
+                });
+            }
+
+            cmd.Parameters.AddWithValue("@reqs", reqs);
+            await cmd.PrepareAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task RemoveFromStore(ICard card)
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("DELETE FROM store_entries WHERE card_id = @card_id", conn);
+            cmd.Parameters.AddWithValue("@card_id", card.Id);
+            await cmd.PrepareAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
         private static ICard CreateCardFromData(Guid id, int damage, ElementType elementType, string monsterType)
             => monsterType switch
         {
             "spell" => elementType switch
             {
                 ElementType.Normal => new Cards.SpellCards.NormalSpell() { Id = id, Damage = damage },
-                ElementType.Water => new Cards.SpellCards.WaterSpell() { Id = id, Damage = damage },
-                ElementType.Fire => new Cards.SpellCards.FireSpell() { Id = id, Damage = damage },
+                ElementType.Water  => new Cards.SpellCards.WaterSpell()  { Id = id, Damage = damage },
+                ElementType.Fire   => new Cards.SpellCards.FireSpell()   { Id = id, Damage = damage },
                 _ => throw new DatabaseException("Invalid spell element type found in database.")
             },
             "dragon" => new Cards.MonsterCards.Dragon() { Id = id, Damage = damage },
-            "elf" => new Cards.MonsterCards.FireElf() { Id = id, Damage = damage },
+            "elf"    => new Cards.MonsterCards.FireElf(){ Id = id, Damage = damage },
             "goblin" => new Cards.MonsterCards.Goblin() { Id = id, Damage = damage },
             "knight" => new Cards.MonsterCards.Knight() { Id = id, Damage = damage },
             "kraken" => new Cards.MonsterCards.Kraken() { Id = id, Damage = damage },
-            "ork" => new Cards.MonsterCards.Ork() { Id = id, Damage = damage },
+            "ork"    => new Cards.MonsterCards.Ork()    { Id = id, Damage = damage },
             "wizard" => new Cards.MonsterCards.Wizard() { Id = id, Damage = damage },
             _ => throw new DatabaseException("Invalid monster type found in database.")
         };
 
-        private NpgsqlConnection OpenConnection()
+        private async Task<NpgsqlConnection> OpenConnection()
         {
             var conn = new NpgsqlConnection(_connectionString);
-            conn.Open();
-            // manual closing is not required whenever the using keyword is used
+            await conn.OpenAsync().ConfigureAwait(false);
+            // manual closing is not required as long as the using keyword is used
             return conn;
         }
     }
