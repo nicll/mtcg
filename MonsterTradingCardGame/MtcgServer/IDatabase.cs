@@ -37,6 +37,13 @@ namespace MtcgServer
         Task SavePlayer(Player player, PlayerChange changes);
 
         /// <summary>
+        /// Finds the owner of a card.
+        /// </summary>
+        /// <param name="card">The card.</param>
+        /// <returns>The owner of the card.</returns>
+        Task<Player> FindOwner(ICard card);
+
+        /// <summary>
         /// Reads information about a card and instantiates an implementing object.
         /// </summary>
         /// <param name="id">The card's <see cref="ICard.Id"/>.</param>
@@ -53,7 +60,7 @@ namespace MtcgServer
         /// Reads all entries currently contained in the card store.
         /// </summary>
         /// <returns>A collection of cards and their trading requirements.</returns>
-        Task<ICollection<(ICard, ICollection<ICardRequirement>)>> ReadStore();
+        Task<ICollection<CardStoreEntry>> ReadStore();
 
         /// <summary>
         /// Adds a new card to the store to mark it as available for trading.

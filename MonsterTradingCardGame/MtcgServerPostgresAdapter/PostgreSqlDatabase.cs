@@ -60,6 +60,11 @@ namespace MtcgServer.Databases.Postgres
         public async Task<Player?> ReadPlayer(Guid id)
         {
             using var conn = await OpenConnection();
+            return await _ReadPlayer(id, conn);
+        }
+
+        private async Task<Player?> _ReadPlayer(Guid id, NpgsqlConnection conn)
+        {
             string name, statusText, emoticon;
             byte[] pwHash;
             int coins, elo, wins, losses;
@@ -212,7 +217,7 @@ namespace MtcgServer.Databases.Postgres
 
         public async Task<Guid> SearchPlayer(string name)
         {
-            var conn = await OpenConnection();
+            using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT id FROM users WHERE name = @name", conn);
             cmd.Parameters.AddWithValue("@name", name);
             await cmd.PrepareAsync();
@@ -223,6 +228,25 @@ namespace MtcgServer.Databases.Postgres
                 return playerId;
 
             return Guid.Empty;
+        }
+
+        public async Task<Player> FindOwner(ICard card)
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("SELECT user_id FROM stacks WHERE card_id = @id", conn);
+            cmd.Parameters.AddWithValue("@id", card.Id);
+            await cmd.PrepareAsync();
+            var result = await cmd.ExecuteScalarAsync();
+
+            if (result is not Guid id)
+                throw new DatabaseException("Invalid column type for user_id in stacks: " + (result?.GetType().Name));
+
+            var player = await _ReadPlayer(id, conn);
+
+            if (player is null)
+                throw new DatabaseException("Player with card does not exist.");
+
+            return player;
         }
 
         public async Task<ICard?> ReadCard(Guid id)
@@ -259,13 +283,13 @@ namespace MtcgServer.Databases.Postgres
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task<ICollection<(ICard, ICollection<ICardRequirement>)>> ReadStore()
+        public async Task<ICollection<CardStoreEntry>> ReadStore()
         {
             using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT e.card_id, c.damage, c.element_type, c.monster_type, e.reqs FROM store_entries e JOIN cards c ON e.card_id = c.id", conn);
 
             var reader = await cmd.ExecuteReaderAsync();
-            List<(ICard, ICollection<ICardRequirement>)> entries = new();
+            List<CardStoreEntry> entries = new();
 
             while (reader.Read())
             {
@@ -306,7 +330,7 @@ namespace MtcgServer.Databases.Postgres
                     });
                 }
 
-                entries.Add((card, translatedReqs));
+                entries.Add(new CardStoreEntry(card, translatedReqs));
             }
 
             return entries;

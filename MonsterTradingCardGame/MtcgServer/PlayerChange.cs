@@ -23,8 +23,7 @@ namespace MtcgServer
         // combinations for usual events
         AfterGame = ELO | Wins | Losses,
         AfterBuyPackage = Stack | Coins,
-        ModifiedStack = Stack,
-        ModifiedDeck = Deck,
+        AfterTrade = Stack,
 
         // additional helpers
         None = 0,

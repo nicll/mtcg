@@ -15,27 +15,23 @@ namespace MtcgServer
         private const string Pepper = "mtcg--";
         private readonly List<CardPackage> _packages;
         private readonly ConcurrentDictionary<Session, Guid> _sessions;
-        private readonly List<Guid> _waiting;
-        private readonly object _lobbyLock;
         private volatile Player? _firstBattlingPlayer;
         private volatile BattleResult? _btlResult;
         private readonly SemaphoreSlim _invokeBattleLimiter, _invokeBattleExclusive, _invokeBattleHang;
         private readonly IDatabase _db;
-        private readonly IMatchmaker _mm;
         private readonly IBattleHandler _btl;
+        private readonly CardStore _store;
 
-        public MtcgServer(IDatabase database, IMatchmaker matchmaker, IBattleHandler battleHandler)
+        public MtcgServer(IDatabase database, IBattleHandler battleHandler)
         {
             _packages = new List<CardPackage>();
             _sessions = new ConcurrentDictionary<Session, Guid>();
-            _waiting = new List<Guid>();
-            _lobbyLock = new object();
-            _invokeBattleLimiter = new SemaphoreSlim(0, 2);
-            _invokeBattleExclusive = new SemaphoreSlim(0, 1);
-            _invokeBattleHang = new SemaphoreSlim(1, 1);
+            _invokeBattleLimiter = new SemaphoreSlim(2, 2);
+            _invokeBattleExclusive = new SemaphoreSlim(1, 1);
+            _invokeBattleHang = new SemaphoreSlim(0, 1);
             _db = database;
-            _mm = matchmaker;
             _btl = battleHandler;
+            _store = new CardStore(database);
         }
 
         /// <summary>
@@ -78,6 +74,10 @@ namespace MtcgServer
 
             // get player object and password hash ready
             var player = await _db.ReadPlayer(playerId);
+
+            if (player is null)
+                return null;
+
             var passHash = HashPlayerPassword(playerId, pass);
 
             // if hashes don't match don't create session
@@ -96,39 +96,7 @@ namespace MtcgServer
         /// <param name="session">Session of the player.</param>
         /// <returns>Whether logout was successful or not.</returns>
         public bool Logout(Session session)
-        {
-            DisableBattle(session);
-            return _sessions.TryRemove(session, out _);
-        }
-
-        /// <summary>
-        /// Marks a player as available for battling.
-        /// </summary>
-        /// <param name="session">Session of the player.</param>
-        public void EnableBattle(Session session)
-        {
-            if (!TryGetPlayerID(session, out Guid playerId))
-                return;
-
-            lock (_lobbyLock)
-            {
-                if (!_waiting.Contains(playerId))
-                    _waiting.Add(playerId);
-            }
-        }
-
-        /// <summary>
-        /// Marks a player as unavailable for battling.
-        /// </summary>
-        /// <param name="session">Session of the player.</param>
-        public void DisableBattle(Session session)
-        {
-            if (!TryGetPlayerID(session, out Guid playerId))
-                return;
-
-            lock (_lobbyLock)
-                _waiting.Remove(playerId);
-        }
+            => _sessions.TryRemove(session, out _);
 
         /// <summary>
         /// Causes a player to join a battle ASAP.
@@ -190,6 +158,87 @@ namespace MtcgServer
                 return null;
 
             return await _db.ReadPlayer(playerId);
+        }
+
+        /// <summary>
+        /// Gets a collection of all currently available cards in the store.
+        /// </summary>
+        /// <returns>Collection of cards in the store.</returns>
+        public async Task<IReadOnlyCollection<CardStoreEntry>> GetAvailableStoreCards()
+        {
+            if (!_store.Initialized)
+                await _store.Update();
+
+            return _store.GetAllCards();
+        }
+
+        /// <summary>
+        /// Gets a collection of all cards that match the requirements for a specific card.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <param name="cardId">ID of the card.</param>
+        /// <returns>Collection of eligible cards in the store.</returns>
+        public async Task<IReadOnlyCollection<CardStoreEntry>?> GetEligibleStoreCards(Session session, Guid cardId)
+        {
+            if (!TryGetPlayerID(session, out Guid playerId))
+                return null;
+
+            var player = await _db.ReadPlayer(playerId);
+            var card = await _db.ReadCard(cardId);
+
+            if (player is null || card is null)
+                return null;
+
+            if (!player.Stack.Contains(card))
+                return null;
+
+            if (!_store.Initialized)
+                await _store.Update();
+
+            return _store.GetEligibleCards(card);
+        }
+
+        /// <summary>
+        /// Marks a card in the player's inventory as tradable and places it in the store.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <param name="cardId">ID of the card.</param>
+        /// <param name="requirements">Requirements when trading the card.</param>
+        /// <returns>Whether the card was successfully pushed to the store.</returns>
+        public async Task<bool> PushCardToStore(Session session, Guid cardId, ICollection<ICardRequirement> requirements)
+        {
+            if (!TryGetPlayerID(session, out Guid playerId))
+                return false;
+
+            var player = await _db.ReadPlayer(playerId);
+            var card = await _db.ReadCard(cardId);
+
+            if (player is null || card is null)
+                return false;
+
+            return await _store.PushCard(player, card, requirements);
+        }
+
+        /// <summary>
+        /// Trades a player's card with a card from another player.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <param name="ownCardId">ID of the card of the current player.</param>
+        /// <param name="otherCardId">ID of the other card that will be traded.</param>
+        /// <returns>Whether the card could successfully be traded.</returns>
+        public async Task<bool> TradeCards(Session session, Guid ownCardId, Guid otherCardId)
+        {
+            if (!TryGetPlayerID(session, out Guid playerId))
+                return false;
+
+            var player = await _db.ReadPlayer(playerId);
+            var ownCard = await _db.ReadCard(ownCardId);
+            var otherCard = await _db.ReadCard(otherCardId);
+
+            if (player is null || ownCard is null || otherCard is null)
+                return false;
+
+            return await _store.TradeCard(player, ownCard, otherCard);
         }
 
         /// <summary>
