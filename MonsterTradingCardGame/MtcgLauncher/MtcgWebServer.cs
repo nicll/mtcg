@@ -81,7 +81,7 @@ namespace MtcgLauncher
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
             });
 
-            // Get player stack
+            // Get any player stack
             _web.RegisterResourceRoute("GET", "/users/%/stack", async ctx =>
             {
                 var username = ctx.Resources[0];
@@ -92,7 +92,7 @@ namespace MtcgLauncher
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
             });
 
-            // Get player deck
+            // Get any player deck
             _web.RegisterResourceRoute("GET", "/users/%/deck", async ctx =>
             {
                 var username = ctx.Resources[0];
@@ -101,6 +101,69 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Deck));
 
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
+            });
+
+            // Get own stack
+            _web.RegisterStaticRoute("GET", "/stack", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (await _server.GetPlayer(new Session(token)) is Player player)
+                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Stack));
+
+                return new RestResponse(HttpStatusCode.Unauthorized, "Player not logged in.");
+            });
+
+            // Get own deck
+            _web.RegisterStaticRoute("GET", "/deck", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (await _server.GetPlayer(new Session(token)) is Player player)
+                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Deck));
+
+                return new RestResponse(HttpStatusCode.Unauthorized, "Player not logged in.");
+            });
+
+            // Edit deck
+            _web.RegisterStaticRoute("POST", "/deck", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<Guid[]>(ctx, out var cardIds))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid deck specification.");
+
+                if (await _server.SetDeck(new Session(token), cardIds))
+                    return new RestResponse(HttpStatusCode.OK, "Successfully updated deck.");
+
+                return new RestResponse(HttpStatusCode.BadRequest, "Could not update deck. (not logged in, not exactly five cards or invalid card id)");
+            });
+
+            // Battling
+            _web.RegisterStaticRoute("POST", "/battle", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (await _server.InvokeBattle(new Session(token)) is not BattleResult result)
+                    return new RestResponse(HttpStatusCode.BadRequest, "Not logged in or invalid deck configuration.");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
             });
 
 

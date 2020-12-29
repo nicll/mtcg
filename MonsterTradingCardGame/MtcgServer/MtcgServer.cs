@@ -99,7 +99,7 @@ namespace MtcgServer
             => _sessions.TryRemove(session, out _);
 
         /// <summary>
-        /// Causes a player to join a battle ASAP.
+        /// Causes a player to join a battle immediately.
         /// </summary>
         /// <param name="session">Session of the player.</param>
         public async Task<BattleResult?> InvokeBattle(Session session)
@@ -107,7 +107,7 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return null;
 
-            if (player?.Deck.Count != 5)
+            if (player.Deck.Count != 5)
                 return null;
 
             // only two taks may run simultaneously
