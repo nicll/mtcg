@@ -4,7 +4,13 @@ namespace MtcgServer
 {
     public class Session
     {
-        public Guid Token { get; } = Guid.NewGuid();
+        public Guid Token { get; }
+
+        public Session()
+            => Token = Guid.NewGuid();
+
+        public Session(Guid token)
+            => Token = token;
 
         public override bool Equals(object? other)
         {
