@@ -1,6 +1,8 @@
 ﻿using MtcgLauncher.Models;
 using MtcgServer;
 using MtcgServer.CardRequirements;
+using MtcgServer.Cards.MonsterCards;
+using MtcgServer.Cards.SpellCards;
 using Newtonsoft.Json;
 using RestWebServer;
 using System;
@@ -203,9 +205,9 @@ namespace MtcgLauncher
                 if (!TryGetObject<PushCardStoreModel>(ctx, out var pushModel))
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid specification.");
 
-                List<ICardRequirement> translatedReqs = new(pushModel.Requirements?.Count ?? 0);
+                List<ICardRequirement> translatedReqs = new(pushModel.Requirements.Length);
 
-                foreach (var req in pushModel.Requirements ?? Array.Empty<CardRequirementModel>())
+                foreach (var req in pushModel.Requirements)
                 {
                     switch (req.RequirementType)
                     {
@@ -233,7 +235,7 @@ namespace MtcgLauncher
                 if (!await _server.PushCardToStore(new Session(token), pushModel.CardId, translatedReqs))
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or card ID.");
 
-                return new RestResponse(HttpStatusCode.OK, "Successfully pushed card to store.");
+                return new RestResponse(HttpStatusCode.Created, "Successfully pushed card to store: " + pushModel.CardId);
             });
 
             // Trade with card store ("trading")
@@ -282,6 +284,51 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid session.");
 
                 return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+            });
+
+            _web.RegisterStaticRoute("POST", "/store/packages", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<PushCardPackageModel>(ctx, out var pushModel))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid package.");
+
+                List<ICard> translatedCards = new(pushModel.Cards.Length);
+                var packageId = Guid.NewGuid();
+
+                foreach (var card in pushModel.Cards)
+                {
+                    try
+                    {
+                        translatedCards.Add(card.CardType switch
+                        {
+                            CardType.Dragon => new Dragon { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.FireElf => new FireElf { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Goblin => new Goblin { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Knight => new Knight { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Kraken => new Kraken { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Ork => new Ork { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Wizard => new Wizard { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.NormalSpell => new NormalSpell { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.WaterSpell => new WaterSpell { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.FireSpell => new FireSpell { Id = Guid.NewGuid(), Damage = card.Damage },
+                            _ => throw new ArgumentOutOfRangeException()
+                        });
+                    }
+                    catch (ArgumentOutOfRangeException)
+                    {
+                        return new RestResponse(HttpStatusCode.BadRequest, "Unknown card type: " + card.CardType);
+                    }
+                }
+
+                if (!await _server.RegisterPackage(new Session(token), new CardPackage(packageId, pushModel.Price, translatedCards)))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
+
+                return new RestResponse(HttpStatusCode.Created, "Successfully created package with ID: " + packageId.ToString("N"));
             });
         }
 

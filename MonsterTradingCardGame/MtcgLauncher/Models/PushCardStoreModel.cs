@@ -8,6 +8,6 @@ namespace MtcgLauncher.Models
     {
         public Guid CardId { get; set; }
 
-        public ICollection<CardRequirementModel>? Requirements { get; set; }
+        public CardRequirementModel[] Requirements { get; set; } = Array.Empty<CardRequirementModel>();
     }
 }
