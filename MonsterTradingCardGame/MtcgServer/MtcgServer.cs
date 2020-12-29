@@ -296,10 +296,10 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <returns>A collection of all affordable packages.</returns>
-        public async Task<IReadOnlyCollection<CardPackage>> GetAffordablePackages(Session session)
+        public async Task<IReadOnlyCollection<CardPackage>?> GetAffordablePackages(Session session)
         {
             if (await GetPlayer(session) is not Player player)
-                return Array.Empty<CardPackage>();
+                return null;
 
             if (!_packages.Initialized)
                 await _packages.Update();
@@ -308,12 +308,25 @@ namespace MtcgServer
         }
 
         /// <summary>
+        /// Gets all packages below a certain price.
+        /// </summary>
+        /// <param name="maxPrice">The price threshold.</param>
+        /// <returns>A collection of all affordable packages.</returns>
+        public async Task<IReadOnlyCollection<CardPackage>> GetAffordablePackages(int maxPrice)
+        {
+            if (!_packages.Initialized)
+                await _packages.Update();
+
+            return _packages.GetAffordablePackages(maxPrice);
+        }
+
+        /// <summary>
         /// Registers a new package created by an admin.
         /// </summary>
         /// <param name="package">The new package.</param>
         public async Task<bool> RegisterPackage(Session session, CardPackage package)
         {
-            if (await GetPlayer(session) is not Player player)
+            if (await GetPlayer(session) is not Player)
                 return false;
 
             // Authorization would happen here if it existed
@@ -338,7 +351,7 @@ namespace MtcgServer
                 await _packages.Update();
 
             var newPlayer = player with { Coins = player.Coins - price };
-            _packages.GetRandomCards(5).ForEach(c => newPlayer.Stack.Add(c));
+            _packages.GetRandomCards(5).ForEach(c => newPlayer.Stack.Add(c.CollissionlessDuplicate()));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
@@ -364,7 +377,7 @@ namespace MtcgServer
             var newPlayer = player with { Coins = player.Coins - pickedPackage.Price };
 
             foreach (var card in pickedPackage.Cards)
-                newPlayer.Stack.Add(card);
+                newPlayer.Stack.Add(card.CollissionlessDuplicate());
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
@@ -390,7 +403,7 @@ namespace MtcgServer
             var newPlayer = player with { Coins = player.Coins - package.Price };
 
             foreach (var card in package.Cards)
-                newPlayer.Stack.Add(card);
+                newPlayer.Stack.Add(card.CollissionlessDuplicate());
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }

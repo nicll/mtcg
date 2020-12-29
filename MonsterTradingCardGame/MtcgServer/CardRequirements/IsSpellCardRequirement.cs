@@ -6,5 +6,8 @@ namespace MtcgServer.CardRequirements
     {
         public bool CheckRequirement(ICard card)
             => card is Cards.SpellCard;
+
+        public string RequirementAsString
+            => "Card must be a spell card.";
     }
 }

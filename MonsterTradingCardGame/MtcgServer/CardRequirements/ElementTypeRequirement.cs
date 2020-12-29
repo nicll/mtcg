@@ -8,5 +8,8 @@ namespace MtcgServer.CardRequirements
 
         public bool CheckRequirement(ICard card)
             => card.Type == Type;
+
+        public string RequirementAsString
+            => $"Element type must be {Type}.";
     }
 }

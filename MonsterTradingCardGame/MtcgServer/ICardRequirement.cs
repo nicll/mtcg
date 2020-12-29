@@ -13,5 +13,10 @@ namespace MtcgServer
         /// <param name="card">Proposed card for exchange.</param>
         /// <returns>Whether the requirement was met or not.</returns>
         bool CheckRequirement(ICard card);
+
+        /// <summary>
+        /// Formulates the requirement as a sentence.
+        /// </summary>
+        string RequirementAsString { get; }
     }
 }

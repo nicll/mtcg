@@ -8,5 +8,8 @@ namespace MtcgServer.CardRequirements
 
         public bool CheckRequirement(ICard card)
             => card.Damage >= MinimumDamage;
+
+        public string RequirementAsString
+            => $"Card must deal at least {MinimumDamage} damage.";
     }
 }
