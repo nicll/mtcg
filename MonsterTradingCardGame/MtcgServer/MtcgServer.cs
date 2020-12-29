@@ -13,7 +13,6 @@ namespace MtcgServer
     public class MtcgServer
     {
         private const string Pepper = "mtcg--";
-        private readonly List<CardPackage> _packages;
         private readonly ConcurrentDictionary<Session, Guid> _sessions;
         private volatile Player? _firstBattlingPlayer;
         private volatile BattleResult? _btlResult;
@@ -21,10 +20,10 @@ namespace MtcgServer
         private readonly IDatabase _db;
         private readonly IBattleHandler _btl;
         private readonly CardStore _store;
+        private readonly PackageStore _packages;
 
         public MtcgServer(IDatabase database, IBattleHandler battleHandler)
         {
-            _packages = new List<CardPackage>();
             _sessions = new ConcurrentDictionary<Session, Guid>();
             _invokeBattleLimiter = new SemaphoreSlim(2, 2);
             _invokeBattleExclusive = new SemaphoreSlim(1, 1);
@@ -32,6 +31,7 @@ namespace MtcgServer
             _db = database;
             _btl = battleHandler;
             _store = new CardStore(database);
+            _packages = new PackageStore(database);
         }
 
         /// <summary>
@@ -180,10 +180,9 @@ namespace MtcgServer
         /// <returns>Collection of eligible cards in the store.</returns>
         public async Task<IReadOnlyCollection<CardStoreEntry>?> GetEligibleStoreCards(Session session, Guid cardId)
         {
-            if (!TryGetPlayerID(session, out Guid playerId))
+            if (await GetPlayer(session) is not Player player)
                 return null;
 
-            var player = await _db.ReadPlayer(playerId);
             var card = await _db.ReadCard(cardId);
 
             if (player is null || card is null)
@@ -207,10 +206,9 @@ namespace MtcgServer
         /// <returns>Whether the card was successfully pushed to the store.</returns>
         public async Task<bool> PushCardToStore(Session session, Guid cardId, ICollection<ICardRequirement> requirements)
         {
-            if (!TryGetPlayerID(session, out Guid playerId))
+            if (await GetPlayer(session) is not Player player)
                 return false;
 
-            var player = await _db.ReadPlayer(playerId);
             var card = await _db.ReadCard(cardId);
 
             if (player is null || card is null)
@@ -228,10 +226,9 @@ namespace MtcgServer
         /// <returns>Whether the card could successfully be traded.</returns>
         public async Task<bool> TradeCards(Session session, Guid ownCardId, Guid otherCardId)
         {
-            if (!TryGetPlayerID(session, out Guid playerId))
+            if (await GetPlayer(session) is not Player player)
                 return false;
 
-            var player = await _db.ReadPlayer(playerId);
             var ownCard = await _db.ReadCard(ownCardId);
             var otherCard = await _db.ReadCard(otherCardId);
 
@@ -242,11 +239,47 @@ namespace MtcgServer
         }
 
         /// <summary>
+        /// Gets all currently available packages.
+        /// </summary>
+        /// <returns>A collection of all packages.</returns>
+        public async Task<IReadOnlyCollection<CardPackage>> GetAllPackages()
+        {
+            if (!_packages.Initialized)
+                await _packages.Update();
+
+            return _packages.GetPackages();
+        }
+
+        /// <summary>
+        /// Gets all packages that a player can afford.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <returns>A collection of all affordable packages.</returns>
+        public async Task<IReadOnlyCollection<CardPackage>> GetAffordablePackages(Session session)
+        {
+            if (await GetPlayer(session) is not Player player)
+                return Array.Empty<CardPackage>();
+
+            if (!_packages.Initialized)
+                await _packages.Update();
+
+            return _packages.GetAffordablePackages(player.Coins);
+        }
+
+        /// <summary>
         /// Registers a new package created by an admin.
         /// </summary>
         /// <param name="package">The new package.</param>
-        public void RegisterPackage(CardPackage package)
-            => _packages.Add(package);
+        public async Task<bool> RegisterPackage(Session session, CardPackage package)
+        {
+            if (await GetPlayer(session) is not Player player)
+                return false;
+
+            // Authorization would happen here if it existed
+
+            await _packages.RegisterPackage(package);
+            return true;
+        }
 
         /// <summary>
         /// Makes a player buy randomly chosen cards.
@@ -260,8 +293,11 @@ namespace MtcgServer
             if (player.Coins - price < 0)
                 return;
 
+            if (!_packages.Initialized)
+                await _packages.Update();
+
             var newPlayer = player with { Coins = player.Coins - price };
-            RetrieveRandomCards(5).ForEach(c => newPlayer.Stack.Add(c));
+            _packages.GetRandomCards(5).ForEach(c => newPlayer.Stack.Add(c));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
         }
@@ -275,7 +311,10 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return;
 
-            var possiblePackages = _packages.Where(p => p.Price <= player.Coins).ToArray();
+            if (!_packages.Initialized)
+                await _packages.Update();
+
+            var possiblePackages = _packages.GetPackages().Where(p => p.Price <= player.Coins).ToArray();
 
             if (possiblePackages.Length < 1)
                 return;
@@ -299,7 +338,10 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return;
 
-            var package = _packages.Find(p => p.Id == packageId);
+            if (!_packages.Initialized)
+                await _packages.Update();
+
+            var package = _packages.GetPackage(packageId);
 
             if (package is null)
                 return;
@@ -337,28 +379,6 @@ namespace MtcgServer
         /// <returns></returns>
         private static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
             => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 100, 0, 0);
-
-        /// <summary>
-        /// Retrieves the specified number of randomly chosen cards
-        /// from the existing packages.
-        /// </summary>
-        /// <param name="count"></param>
-        /// <returns>The randomly chosen cards.</returns>
-        private List<ICard> RetrieveRandomCards(int count)
-        {
-            if (_packages.Count == 0)
-                throw new InvalidOperationException("Tried to retrieve randomly chosen cards when none were defined.");
-
-            var cards = new List<ICard>(count);
-
-            for (int i = 0; i < count; ++i)
-            {
-                var package = _packages[_rnd.Next(_packages.Count)];
-                cards[i] = package.Cards[_rnd.Next(package.Cards.Count)];
-            }
-
-            return cards;
-        }
 
         /// <summary>
         /// Hashes a player's password.

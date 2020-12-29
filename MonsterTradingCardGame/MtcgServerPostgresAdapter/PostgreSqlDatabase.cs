@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
 using Npgsql;
@@ -258,16 +259,14 @@ namespace MtcgServer.Databases.Postgres
 
             var reader = await cmd.ExecuteReaderAsync();
 
-            if (await reader.ReadAsync())
-            {
-                var damage = reader.GetInt32(0);
-                var elementType = await reader.GetFieldValueAsync<ElementType>(1);
-                var monsterType = await reader.GetFieldValueAsync<string>(2);
+            if (!await reader.ReadAsync())
+                return null;
 
-                return CreateCardFromData(id, damage, elementType, monsterType);
-            }
+            var damage = reader.GetInt32(0);
+            var elementType = await reader.GetFieldValueAsync<ElementType>(1);
+            var monsterType = await reader.GetFieldValueAsync<string>(2);
 
-            return null;
+            return CreateCardFromData(id, damage, elementType, monsterType);
         }
 
         public async Task CreateCard(ICard card)
@@ -279,7 +278,6 @@ namespace MtcgServer.Databases.Postgres
             cmd.Parameters.AddWithValue("@element_type", card.Type);
             cmd.Parameters.AddWithValue("@monster_type", card is Cards.SpellCard ? "spell" : card.GetType().Name.ToLowerInvariant());
             await cmd.PrepareAsync();
-
             await cmd.ExecuteNonQueryAsync();
         }
 
@@ -370,6 +368,47 @@ namespace MtcgServer.Databases.Postgres
             await cmd.ExecuteNonQueryAsync();
         }
 
+        public async Task AddToPackages(CardPackage package)
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("INSERT INTO packages VALUES (@package_id, @price, @card_ids)", conn);
+            cmd.Parameters.AddWithValue("@package_id", package.Id);
+            cmd.Parameters.AddWithValue("@price", package.Price);
+            cmd.Parameters.AddWithValue("@card_ids", package.Cards.Select(c => c.Id).ToList());
+            await cmd.PrepareAsync();
+            await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<ICollection<CardPackage>> GetPackages()
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("SELECT package_id, price, card_ids FROM packages", conn);
+            var reader = await cmd.ExecuteReaderAsync();
+            List<CardPackage> packages = new();
+
+            while (reader.Read())
+            {
+                var packageId = reader.GetGuid(0);
+                var price = reader.GetInt32(1);
+                var cardIds = await reader.GetFieldValueAsync<Guid[]>(2);
+                List<ICard> cards = new(cardIds.Length);
+
+                using (var cardCmd = new NpgsqlCommand("SELECT id, damage, element_type, monster_type FROM cards WHERE id in ('" + String.Join("','", cardIds) + "')", conn))
+                {
+                    var cardId = reader.GetGuid(0);
+                    var damage = reader.GetInt32(1);
+                    var elementType = await reader.GetFieldValueAsync<ElementType>(2);
+                    var monsterType = await reader.GetFieldValueAsync<string>(3);
+
+                    cards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
+                }
+
+                packages.Add(new CardPackage(packageId, price, cards));
+            }
+
+            return packages;
+        }
+
         private static ICard CreateCardFromData(Guid id, int damage, ElementType elementType, string monsterType)
             => monsterType switch
         {
@@ -380,13 +419,13 @@ namespace MtcgServer.Databases.Postgres
                 ElementType.Fire   => new Cards.SpellCards.FireSpell()   { Id = id, Damage = damage },
                 _ => throw new DatabaseException("Invalid spell element type found in database.")
             },
-            "dragon" => new Cards.MonsterCards.Dragon() { Id = id, Damage = damage },
-            "elf"    => new Cards.MonsterCards.FireElf(){ Id = id, Damage = damage },
-            "goblin" => new Cards.MonsterCards.Goblin() { Id = id, Damage = damage },
-            "knight" => new Cards.MonsterCards.Knight() { Id = id, Damage = damage },
-            "kraken" => new Cards.MonsterCards.Kraken() { Id = id, Damage = damage },
-            "ork"    => new Cards.MonsterCards.Ork()    { Id = id, Damage = damage },
-            "wizard" => new Cards.MonsterCards.Wizard() { Id = id, Damage = damage },
+            "dragon" => new Cards.MonsterCards.Dragon()  { Id = id, Damage = damage },
+            "elf"    => new Cards.MonsterCards.FireElf() { Id = id, Damage = damage },
+            "goblin" => new Cards.MonsterCards.Goblin()  { Id = id, Damage = damage },
+            "knight" => new Cards.MonsterCards.Knight()  { Id = id, Damage = damage },
+            "kraken" => new Cards.MonsterCards.Kraken()  { Id = id, Damage = damage },
+            "ork"    => new Cards.MonsterCards.Ork()     { Id = id, Damage = damage },
+            "wizard" => new Cards.MonsterCards.Wizard()  { Id = id, Damage = damage },
             _ => throw new DatabaseException("Invalid monster type found in database.")
         };
 

@@ -19,7 +19,7 @@ namespace MtcgServer
             /// <summary>
             /// Chooses a random card from a list of available cards.
             /// </summary>
-            /// <param name="cards">The list of available cards.</param>
+            /// <param name="cards">The non-empty list of available cards.</param>
             /// <returns>The chosen card.</returns>
             internal static ICard ChooseRandomCard(List<ICard> cards)
                 => cards[_rnd.Next(cards.Count)];
@@ -28,7 +28,7 @@ namespace MtcgServer
             /// Chooses a random card from a list of available cards and removes it.
             /// Then returns the chosen card.
             /// </summary>
-            /// <param name="cards">The list of available cards.</param>
+            /// <param name="cards">The non-empty list of available cards.</param>
             /// <returns>The chosen card.</returns>
             internal static ICard PopRandomCard(List<ICard> cards)
             {
@@ -41,7 +41,16 @@ namespace MtcgServer
             /// Chooses a random element from a collection of available elements.
             /// </summary>
             /// <typeparam name="T">Element type.</typeparam>
-            /// <param name="collection">The collection of available elements.</param>
+            /// <param name="array">The non-empty collection of available elements.</param>
+            /// <returns>The chosen element.</returns>
+            internal static T ChooseRandom<T>(T[] array)
+                => array[_rnd.Next(array.Length)];
+
+            /// <summary>
+            /// Chooses a random element from a collection of available elements.
+            /// </summary>
+            /// <typeparam name="T">Element type.</typeparam>
+            /// <param name="collection">The non-empty collection of available elements.</param>
             /// <returns>The chosen element.</returns>
             internal static T ChooseRandom<T>(ICollection<T> collection)
                 => collection.ElementAt(_rnd.Next(collection.Count));
@@ -51,7 +60,7 @@ namespace MtcgServer
             /// and removes it from the collection. Then returns the chosen element.
             /// </summary>
             /// <typeparam name="T">Element type.</typeparam>
-            /// <param name="collection">The collection of available elements.</param>
+            /// <param name="collection">The non-empty collection of available elements.</param>
             /// <returns>The chosen element.</returns>
             internal static T PopRandom<T>(ICollection<T> collection)
             {

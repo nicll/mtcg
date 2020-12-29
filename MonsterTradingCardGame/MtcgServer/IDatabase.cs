@@ -76,5 +76,17 @@ namespace MtcgServer
         /// </summary>
         /// <param name="card">The card.</param>
         Task RemoveFromStore(ICard card);
+
+        /// <summary>
+        /// Adds a new package to the database.
+        /// </summary>
+        /// <param name="package">The package.</param>
+        Task AddToPackages(CardPackage package);
+
+        /// <summary>
+        /// Gets a collection of all currently defined packages.
+        /// </summary>
+        /// <returns>List of packages.</returns>
+        Task<ICollection<CardPackage>> GetPackages();
     }
 }

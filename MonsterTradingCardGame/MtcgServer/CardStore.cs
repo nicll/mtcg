@@ -9,7 +9,7 @@ namespace MtcgServer
     /// <summary>
     /// Represents a store that holds tradable cards.
     /// </summary>
-    public class CardStore
+    internal class CardStore
     {
         private readonly IDatabase _db;
         private List<CardStoreEntry> _cache;
