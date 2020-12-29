@@ -2,9 +2,18 @@
 
 namespace MtcgServer
 {
+    /// <summary>
+    /// The shared base-implementation for all internally defined cards.
+    /// </summary>
     public abstract class CardBase : ICard
     {
-        public Guid Id { get; init; }
+        private Guid _id;
+
+        public Guid Id
+        {
+            get => _id;
+            init => _id = value;
+        }
 
         public abstract ElementType Type { get; }
 
@@ -19,6 +28,13 @@ namespace MtcgServer
                     (ElementType.Normal, ElementType.Water)  => _CalculateDamage(other) * 2,
                     _ => _CalculateDamage(other)
                 };
+
+        public ICard CollissionlessDuplicate()
+        {
+            var copy = (CardBase)MemberwiseClone();
+            copy._id = Guid.NewGuid();
+            return copy;
+        }
 
         protected virtual int _CalculateDamage(in ICard other)
             => Damage;
