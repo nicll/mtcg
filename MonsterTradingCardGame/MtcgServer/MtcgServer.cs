@@ -104,10 +104,8 @@ namespace MtcgServer
         /// <param name="session">Session of the player.</param>
         public async Task<BattleResult?> InvokeBattle(Session session)
         {
-            if (!TryGetPlayerID(session, out Guid playerId))
+            if (await GetPlayer(session) is not Player player)
                 return null;
-
-            var player = await _db.ReadPlayer(playerId);
 
             if (player?.Deck.Count != 5)
                 return null;
@@ -150,6 +148,21 @@ namespace MtcgServer
         /// <summary>
         /// Fetches all information about a player, if found.
         /// </summary>
+        /// <param name="user">Username of the player.</param>
+        /// <returns>Information about the player or <see langword="null"/>.</returns>
+        public async Task<Player?> GetPlayer(string user)
+        {
+            var playerId = await _db.SearchPlayer(user);
+
+            if (playerId == Guid.Empty)
+                return null;
+
+            return await _db.ReadPlayer(playerId);
+        }
+
+        /// <summary>
+        /// Fetches all information about a player, if found.
+        /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <returns>Information about the player or <see langword="null"/>.</returns>
         public async Task<Player?> GetPlayer(Session session)
@@ -158,6 +171,34 @@ namespace MtcgServer
                 return null;
 
             return await _db.ReadPlayer(playerId);
+        }
+
+        /// <summary>
+        /// Updates the deck for a specific player.
+        /// </summary>
+        /// <param name="session">Session of the player.</param>
+        /// <param name="cardIds">IDs of the cards of the new deck.</param>
+        /// <returns>Whether the update was successful or not.</returns>
+        public async Task<bool> SetDeck(Session session, ICollection<Guid> cardIds)
+        {
+            if (await GetPlayer(session) is not Player player)
+                return false;
+
+            if (cardIds.Count != 5)
+                return false;
+
+            player.Deck.Clear();
+
+            foreach (var cardId in cardIds)
+            {
+                if (player.Stack.FirstOrDefault(c => c.Id == cardId) is not ICard card)
+                    return false;
+
+                player.Deck.Add(card);
+            }
+
+            await _db.SavePlayer(player, PlayerChange.Deck);
+            return true;
         }
 
         /// <summary>
