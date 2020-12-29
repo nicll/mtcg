@@ -1,5 +1,6 @@
 ﻿using MtcgLauncher.Models;
 using MtcgServer;
+using MtcgServer.CardRequirements;
 using Newtonsoft.Json;
 using RestWebServer;
 using System;
@@ -30,7 +31,7 @@ namespace MtcgLauncher
             // Register user
             _web.RegisterStaticRoute("POST", "/register", async ctx =>
             {
-                if (!TryGetObject<UserCredentials>(ctx, out var creds))
+                if (!TryGetObject<UserCredentialsModel>(ctx, out var creds))
                     return new RestResponse(HttpStatusCode.BadRequest, "User credentials not properly defined.");
 
                 var session = await _server.Register(creds.Username, creds.Password);
@@ -44,7 +45,7 @@ namespace MtcgLauncher
             // Login user
             _web.RegisterStaticRoute("POST", "/login", async ctx =>
             {
-                if (!TryGetObject<UserCredentials>(ctx, out var creds))
+                if (!TryGetObject<UserCredentialsModel>(ctx, out var creds))
                     return new RestResponse(HttpStatusCode.BadRequest, "User credentials not properly defined.");
 
                 var session = await _server.Login(creds.Username, creds.Password);
@@ -148,7 +149,7 @@ namespace MtcgLauncher
                 if (await _server.SetDeck(new Session(token), cardIds))
                     return new RestResponse(HttpStatusCode.OK, "Successfully updated deck.");
 
-                return new RestResponse(HttpStatusCode.BadRequest, "Could not update deck. (not logged in, not exactly five cards or invalid card id)");
+                return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, not exactly five cards or invalid card ID.");
             });
 
             // Battling
@@ -161,12 +162,127 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
 
                 if (await _server.InvokeBattle(new Session(token)) is not BattleResult result)
-                    return new RestResponse(HttpStatusCode.BadRequest, "Not logged in or invalid deck configuration.");
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or invalid deck configuration.");
 
                 return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
             });
 
+            // View card store ("trading")
+            _web.RegisterStaticRoute("GET", "/store/cards", async _ =>
+                new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAvailableStoreCards())));
 
+            // View card store ("trading") eligible entries
+            _web.RegisterStaticRoute("GET", "/store/cards/eligible", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<Guid>(ctx, out var cardId))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Incorrectly formatted card ID.");
+
+                var result = await _server.GetEligibleStoreCards(new Session(token), cardId);
+
+                if (result is null)
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, invalid card or card not in stack");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+            });
+
+            // Push to card store ("trading push")
+            _web.RegisterStaticRoute("POST", "/store/cards", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<PushCardStoreModel>(ctx, out var pushModel))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid specification.");
+
+                List<ICardRequirement> translatedReqs = new(pushModel.Requirements?.Count ?? 0);
+
+                foreach (var req in pushModel.Requirements ?? Array.Empty<CardRequirementModel>())
+                {
+                    switch (req.RequirementType)
+                    {
+                        case RequirementType.ElementType when req.RequiredElement.HasValue:
+                            translatedReqs.Add(new ElementTypeRequirement() { Type = req.RequiredElement.Value });
+                            break;
+
+                        case RequirementType.IsMonsterCard:
+                            translatedReqs.Add(new IsMonsterCardRequirement());
+                            break;
+
+                        case RequirementType.IsSpellCard:
+                            translatedReqs.Add(new IsSpellCardRequirement());
+                            break;
+
+                        case RequirementType.MinimumDamage when req.MinimumDamage.HasValue:
+                            translatedReqs.Add(new MinimumDamageRequirement() { MinimumDamage = req.MinimumDamage.Value });
+                            break;
+
+                        default:
+                            return new RestResponse(HttpStatusCode.BadRequest, "Unknown requirement type or missing value.");
+                    }
+                }
+
+                if (!await _server.PushCardToStore(new Session(token), pushModel.CardId, translatedReqs))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or card ID.");
+
+                return new RestResponse(HttpStatusCode.OK, "Successfully pushed card to store.");
+            });
+
+            // Trade with card store ("trading")
+            _web.RegisterStaticRoute("POST", "/store/cards", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<CardTradeModel>(ctx, out var tradeModel))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Incorrectly formatted trade model.");
+
+                if (!await _server.TradeCards(new Session(token), tradeModel.OwnCard, tradeModel.OtherCard))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or card specifiction.");
+
+                return new RestResponse(HttpStatusCode.OK, "Successfully traded cards.");
+            });
+
+            // Get packages
+            _web.RegisterStaticRoute("GET", "/store/packages", async _ =>
+                new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAllPackages())));
+
+            // Get affordable packages (max price in route)
+            _web.RegisterResourceRoute("GET", "/store/packages/max/%", async ctx =>
+            {
+                if (!int.TryParse(ctx.Resources[0], out var maxPrice))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid maximum price.");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAffordablePackages(maxPrice)));
+            });
+
+            // Get affordable packages for player
+            _web.RegisterStaticRoute("GET", "/store/packages/affordable", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                var result = await _server.GetAffordablePackages(new Session(token));
+
+                if (result is null)
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session.");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+            });
         }
 
         /// <summary>

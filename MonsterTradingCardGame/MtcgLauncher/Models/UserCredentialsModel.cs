@@ -2,7 +2,7 @@
 
 namespace MtcgLauncher.Models
 {
-    internal class UserCredentials
+    internal class UserCredentialsModel
     {
         public string Username { get; set; }
 
