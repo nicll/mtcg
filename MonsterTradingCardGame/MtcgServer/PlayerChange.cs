@@ -24,6 +24,7 @@ namespace MtcgServer
         AfterGame = ELO | Wins | Losses,
         AfterBuyPackage = Stack | Coins,
         AfterTrade = Stack,
+        EditedProfile = Name | Password | StatusText | EmoticonText,
 
         // additional helpers
         None = 0,

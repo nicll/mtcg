@@ -203,6 +203,23 @@ namespace MtcgServer
             return await _db.ReadPlayer(playerId);
         }
 
+        public async Task<bool> EditPlayer(Session session, string? name = default,
+            string? statusText = default, string? emoticon = default, string? pass = default)
+        {
+            if (await GetPlayer(session) is not Player player)
+                return false;
+
+            var newPlayer = player with
+            {
+                Name = name ?? player.Name,
+                StatusText = statusText ?? player.StatusText,
+                EmoticonText = emoticon ?? player.EmoticonText,
+                PasswordHash = pass != null ? HashPlayerPassword(player.Id, pass) : player.PasswordHash
+            };
+
+            await _db.SavePlayer(newPlayer, PlayerChange.EditedProfile);
+            return true;
+        }
         /// <summary>
         /// Updates the deck for a specific player.
         /// </summary>

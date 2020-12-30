@@ -89,6 +89,24 @@ namespace MtcgLauncher
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
             });
 
+            // Edit player "profile"
+            _web.RegisterStaticRoute("POST", "/profile", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!TryGetObject<EditPlayerModel>(ctx, out var editModel))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid edit.");
+
+                if (!await _server.EditPlayer(new Session(token), editModel.Username, editModel.StatusText, editModel.Emoticon, editModel.Password))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
+
+                return new RestResponse(HttpStatusCode.OK, "Changes have been saved.");
+            });
+
             // Get any player stack
             _web.RegisterResourceRoute("GET", "/users/%/stack", async ctx =>
             {
