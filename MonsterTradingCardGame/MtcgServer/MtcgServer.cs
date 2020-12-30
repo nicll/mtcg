@@ -381,7 +381,7 @@ namespace MtcgServer
                 await _packages.Update();
 
             var newPlayer = player with { Coins = player.Coins - price };
-            _packages.GetRandomCards(5).ForEach(c => newPlayer.Stack.Add(c.CollissionlessDuplicate()));
+            _packages.GetRandomCards(5).ForEach(async c => newPlayer.Stack.Add(await CreateAndSaveDuplicate(c)));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
             return true;
@@ -412,7 +412,7 @@ namespace MtcgServer
             var newPlayer = player with { Coins = player.Coins - pickedPackage.Price };
 
             foreach (var card in pickedPackage.Cards)
-                newPlayer.Stack.Add(card.CollissionlessDuplicate());
+                newPlayer.Stack.Add(await CreateAndSaveDuplicate(card));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
             return true;
@@ -442,7 +442,7 @@ namespace MtcgServer
             var newPlayer = player with { Coins = player.Coins - package.Price };
 
             foreach (var card in package.Cards)
-                newPlayer.Stack.Add(card.CollissionlessDuplicate());
+                newPlayer.Stack.Add(await CreateAndSaveDuplicate(card));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
             return true;
@@ -473,6 +473,18 @@ namespace MtcgServer
         /// <returns></returns>
         private static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
             => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 100, 0, 0);
+
+        /// <summary>
+        /// Saves a duplicate of the card in the database and returns it.
+        /// </summary>
+        /// <param name="card">The original card.</param>
+        /// <returns>The unique duplicate of the original card.</returns>
+        private async Task<ICard> CreateAndSaveDuplicate(ICard card)
+        {
+            var dup = card.CollissionlessDuplicate();
+            await _db.CreateCard(dup);
+            return dup;
+        }
 
         /// <summary>
         /// Hashes a player's password.
