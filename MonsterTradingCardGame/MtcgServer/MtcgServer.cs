@@ -52,7 +52,7 @@ namespace MtcgServer
             var newId = Guid.NewGuid();
             var passHash = HashPlayerPassword(newId, pass);
             var newPlayer = CreateNewPlayer(newId, user, passHash);
-            await _db.SavePlayer(newPlayer, PlayerChange.Everything);
+            await _db.CreatePlayer(newPlayer);
 
             // also create a new login session and return it
             var newSession = new Session();
@@ -159,9 +159,9 @@ namespace MtcgServer
         /// Gets a list of players sorted using the specified scoreboard.
         /// </summary>
         /// <param name="order">Name of the scoreboard.</param>
-        /// <param name="limit">Maximum number of players or -1 for all.</param>
+        /// <param name="limit">Maximum number of players or 0 for all or negative number for reversed.</param>
         /// <returns>Sorted collection of players.</returns>
-        public async Task<ICollection<Player>?> GetScoreboard(string order, int limit = -1)
+        public async Task<ICollection<Player>?> GetScoreboard(string order, int limit = 0)
         {
             if (!_scoreboards.TryGetValue(order, out var scoreboard))
                 return null;
@@ -171,6 +171,9 @@ namespace MtcgServer
 
             if (limit > 0)
                 return orderedPlayers.Take(limit).ToArray();
+
+            if (limit < 0)
+                return orderedPlayers.TakeLast(limit).Reverse().ToArray();
 
             return orderedPlayers.ToArray();
         }

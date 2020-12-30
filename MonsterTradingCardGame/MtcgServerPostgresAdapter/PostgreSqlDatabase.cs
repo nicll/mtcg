@@ -68,7 +68,7 @@ namespace MtcgServer.Databases.Postgres
         {
             using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT id, name, pass_hash, statusmsg, emoticon, coins, elo, wins, losses FROM users", conn);
-            var reader = await cmd.ExecuteReaderAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
             List<Player> players = new();
 
             while (reader.Read())
@@ -100,7 +100,7 @@ namespace MtcgServer.Databases.Postgres
             {
                 cmd.Parameters.AddWithValue("@id", id);
                 await cmd.PrepareAsync();
-                var reader = await cmd.ExecuteReaderAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
 
                 if (!await reader.ReadAsync())
                     return null;
@@ -119,7 +119,7 @@ namespace MtcgServer.Databases.Postgres
             {
                 cmd.Parameters.AddWithValue("@id", id);
                 await cmd.PrepareAsync();
-                var reader = await cmd.ExecuteReaderAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
@@ -135,7 +135,7 @@ namespace MtcgServer.Databases.Postgres
             {
                 cmd.Parameters.AddWithValue("@id", id);
                 await cmd.PrepareAsync();
-                var reader = await cmd.ExecuteReaderAsync();
+                using var reader = await cmd.ExecuteReaderAsync();
 
                 while (await reader.ReadAsync())
                 {
@@ -159,14 +159,15 @@ namespace MtcgServer.Databases.Postgres
             if ((changes & PlayerChange.UsersMask) != PlayerChange.None)
             {
                 using var cmd = new NpgsqlCommand() { Connection = conn, Transaction = trans };
-                StringBuilder sb = new("UPDATE player SET");
+                StringBuilder sb = new("UPDATE users SET");
 
                 foreach (var kvp in PlayerChangeTranslation)
                 {
                     if (!changes.HasFlag(kvp.Key))
                         continue;
 
-                    sb.Append(' ').Append(kvp.Value).Append('=').Append(kvp.Key switch
+                    sb.Append(' ').Append(kvp.Value).Append('=').Append('@').Append(kvp.Value);
+                    cmd.Parameters.AddWithValue('@' + kvp.Value, kvp.Key switch
                     {
                         PlayerChange.Name => player.Name,
                         PlayerChange.Password => player.PasswordHash,
@@ -177,7 +178,8 @@ namespace MtcgServer.Databases.Postgres
                         PlayerChange.Wins => player.Wins,
                         PlayerChange.Losses => player.Losses,
                         _ => throw new InvalidOperationException("Invalid PlayerChange for users: " + kvp.Key)
-                    }).Append(',');
+                    });
+                    sb.Append(',');
                 }
 
                 --sb.Length; // last ','
@@ -282,7 +284,7 @@ namespace MtcgServer.Databases.Postgres
             cmd.Parameters.AddWithValue("@id", id);
             await cmd.PrepareAsync();
 
-            var reader = await cmd.ExecuteReaderAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
 
             if (!await reader.ReadAsync())
                 return null;
@@ -316,7 +318,7 @@ namespace MtcgServer.Databases.Postgres
             using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT e.card_id, c.damage, c.element_type, c.monster_type, e.reqs FROM store_entries e JOIN cards c ON e.card_id = c.id", conn);
 
-            var reader = await cmd.ExecuteReaderAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
             List<CardStoreEntry> entries = new();
 
             while (reader.Read())
@@ -400,7 +402,7 @@ namespace MtcgServer.Databases.Postgres
         {
             using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT package_id, price, card_ids FROM packages", conn);
-            var reader = await cmd.ExecuteReaderAsync();
+            using var reader = await cmd.ExecuteReaderAsync();
             List<CardPackage> packages = new();
 
             while (reader.Read())

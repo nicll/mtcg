@@ -21,6 +21,7 @@ namespace MtcgServer
         Losses =        1 << 9,
 
         // combinations for usual events
+        CreateAccount = Name | Password,
         AfterGame = ELO | Wins | Losses,
         AfterBuyPackage = Stack | Coins,
         AfterTrade = Stack,
