@@ -10,6 +10,6 @@ namespace MtcgServer
         int Coins, ICollection<ICard> Stack, ICollection<ICard> Deck, int ELO, int Wins, int Losses)
     {
         // prevents serialization of password hash by Json.NET
-        public bool ShouldSerializePasswordHash => false;
+        public bool ShouldSerializePasswordHash() => false;
     }
 }
