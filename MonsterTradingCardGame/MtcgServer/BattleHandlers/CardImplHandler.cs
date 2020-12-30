@@ -28,6 +28,7 @@ namespace MtcgServer.BattleHandlers
                 log.Add("Round #" + (round + 1) + ":");
                 var result = RunRound(p1Deck, p2Deck, log);
 
+                // if not draw
                 if (result.HasValue && result is var (card, from, to))
                 {
                     from.Remove(card);

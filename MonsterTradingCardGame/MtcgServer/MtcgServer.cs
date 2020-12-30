@@ -33,7 +33,7 @@ namespace MtcgServer
             _btl = battleHandler;
             _store = new CardStore(database);
             _packages = new PackageStore(database);
-            _scoreboards = new Dictionary<string, IScoreboard>();
+            _scoreboards = new Dictionary<string, IScoreboard>(StringComparer.OrdinalIgnoreCase);
         }
 
         /// <summary>
@@ -109,7 +109,7 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return null;
 
-            if (player.Deck.Count != 5)
+            if (player.Deck.Count != 4)
                 return null;
 
             // only two taks may run simultaneously
@@ -214,7 +214,7 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return false;
 
-            if (cardIds.Count != 5)
+            if (cardIds.Count != 4)
                 return false;
 
             player.Deck.Clear();
@@ -300,12 +300,14 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return false;
 
+            // load cards
             var ownCard = await _db.ReadCard(ownCardId);
             var otherCard = await _db.ReadCard(otherCardId);
 
             if (player is null || ownCard is null || otherCard is null)
                 return false;
 
+            // swap cards
             return await _store.TradeCard(player, ownCard, otherCard);
         }
 
@@ -374,6 +376,7 @@ namespace MtcgServer
             if (await GetPlayer(session) is not Player player)
                 return false;
 
+            // not enough money
             if (player.Coins - price < 0)
                 return false;
 
@@ -401,14 +404,11 @@ namespace MtcgServer
 
             var possiblePackages = _packages.GetPackages().Where(p => p.Price <= player.Coins).ToArray();
 
+            // not enough money
             if (possiblePackages.Length < 1)
                 return false;
 
             var pickedPackage = possiblePackages[_rnd.Next(possiblePackages.Length)];
-
-            if (player.Coins - pickedPackage.Price < 0)
-                return false;
-
             var newPlayer = player with { Coins = player.Coins - pickedPackage.Price };
 
             foreach (var card in pickedPackage.Cards)
@@ -433,9 +433,11 @@ namespace MtcgServer
 
             var package = _packages.GetPackage(packageId);
 
+            // invalid package ID
             if (package is null)
                 return false;
 
+            // not enough money
             if (player.Coins - package.Price < 0)
                 return false;
 
