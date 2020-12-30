@@ -3,6 +3,7 @@ using MtcgServer;
 using MtcgServer.CardRequirements;
 using MtcgServer.Cards.MonsterCards;
 using MtcgServer.Cards.SpellCards;
+using MtcgServer.Scoreboards;
 using Newtonsoft.Json;
 using RestWebServer;
 using System;
@@ -30,6 +31,10 @@ namespace MtcgLauncher
         /// </summary>
         public void RegisterRoutes()
         {
+            _server.AddScoreboard(nameof(HighestELO), new HighestELO());
+            _server.AddScoreboard(nameof(LeastLosses), new LeastLosses());
+            _server.AddScoreboard(nameof(MostWins), new MostWins());
+
             // Register user
             _web.RegisterStaticRoute("POST", "/register", async ctx =>
             {
