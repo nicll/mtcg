@@ -79,14 +79,29 @@ namespace MtcgLauncher
             });
 
             // Get player "profile"
-            _web.RegisterResourceRoute("GET", "/users/%", async ctx =>
+            _web.RegisterResourceRoute("GET", "/profile/%", async ctx =>
             {
                 var username = ctx.Resources[0];
 
-                if (await _server.GetPlayer(username) is Player player)
-                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player));
+                if (await _server.GetPlayer(username) is not Player player)
+                    return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
 
-                return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player));
+            });
+
+            // Get own player "profile"
+            _web.RegisterStaticRoute("GET", "/profile", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (await _server.GetPlayer(new Session(token)) is not Player player)
+                    return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player));
             });
 
             // Edit player "profile"
@@ -217,7 +232,7 @@ namespace MtcgLauncher
             });
 
             // Push to card store ("trading push")
-            _web.RegisterStaticRoute("POST", "/store/cards", async ctx =>
+            _web.RegisterStaticRoute("POST", "/store/cards/new", async ctx =>
             {
                 if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
                     return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
@@ -262,7 +277,7 @@ namespace MtcgLauncher
             });
 
             // Trade with card store ("trading")
-            _web.RegisterStaticRoute("POST", "/store/cards", async ctx =>
+            _web.RegisterStaticRoute("POST", "/store/cards/trade", async ctx =>
             {
                 if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
                     return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
@@ -404,7 +419,7 @@ namespace MtcgLauncher
             });
 
             // Player scoreboards
-            _web.RegisterStaticRoute("GET", "/scoreboard/%", async ctx =>
+            _web.RegisterResourceRoute("GET", "/scoreboards/%", async ctx =>
             {
                 var scoreboard = ctx.Resources[0];
 
@@ -431,6 +446,11 @@ namespace MtcgLauncher
 
         private static bool TryGetObject<T>(RequestContext context, [MaybeNullWhen(false)] out T result)
         {
+            result = default;
+
+            if (String.IsNullOrEmpty(context.Payload))
+                return false;
+
             try
             {
                 result =  JsonConvert.DeserializeObject<T>(context.Payload);
@@ -438,7 +458,6 @@ namespace MtcgLauncher
             }
             catch (JsonException)
             {
-                result = default;
                 return false;
             }
         }
