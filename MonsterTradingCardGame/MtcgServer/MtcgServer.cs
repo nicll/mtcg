@@ -21,6 +21,7 @@ namespace MtcgServer
         private readonly IBattleHandler _btl;
         private readonly CardStore _store;
         private readonly PackageStore _packages;
+        private readonly Dictionary<string, IScoreboard> _scoreboards;
 
         public MtcgServer(IDatabase database, IBattleHandler battleHandler)
         {
@@ -32,6 +33,7 @@ namespace MtcgServer
             _btl = battleHandler;
             _store = new CardStore(database);
             _packages = new PackageStore(database);
+            _scoreboards = new Dictionary<string, IScoreboard>();
         }
 
         /// <summary>
@@ -143,6 +145,34 @@ namespace MtcgServer
             // let other player's task continue
             _invokeBattleHang.Release();
             return result;
+        }
+
+        /// <summary>
+        /// Registers a new scoreboard.
+        /// </summary>
+        /// <param name="orderName">Name of the scoreboard.</param>
+        /// <param name="scoreboard">The scoreboard itself.</param>
+        public void AddScoreboard(string orderName, IScoreboard scoreboard)
+            => _scoreboards.Add(orderName, scoreboard);
+
+        /// <summary>
+        /// Gets a list of players sorted using the specified scoreboard.
+        /// </summary>
+        /// <param name="order">Name of the scoreboard.</param>
+        /// <param name="limit">Maximum number of players or -1 for all.</param>
+        /// <returns>Sorted collection of players.</returns>
+        public async Task<ICollection<Player>?> GetScoreboard(string order, int limit = -1)
+        {
+            if (!_scoreboards.TryGetValue(order, out var scoreboard))
+                return null;
+
+            var players = await _db.ListPlayers();
+            var orderedPlayers = players.OrderBy(p => p, scoreboard);
+
+            if (limit > 0)
+                return orderedPlayers.Take(limit).ToArray();
+
+            return orderedPlayers.ToArray();
         }
 
         /// <summary>
@@ -339,13 +369,13 @@ namespace MtcgServer
         /// Makes a player buy randomly chosen cards.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public async Task BuyRandomCards(Session session, int price = 5)
+        public async Task<bool> BuyRandomCards(Session session, int price = 5)
         {
             if (await GetPlayer(session) is not Player player)
-                return;
+                return false;
 
             if (player.Coins - price < 0)
-                return;
+                return false;
 
             if (!_packages.Initialized)
                 await _packages.Update();
@@ -354,16 +384,17 @@ namespace MtcgServer
             _packages.GetRandomCards(5).ForEach(c => newPlayer.Stack.Add(c.CollissionlessDuplicate()));
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
+            return true;
         }
 
         /// <summary>
         /// Makes a player buy a randomly chosen package that they can afford.
         /// </summary>
         /// <param name="session">Session of the player.</param>
-        public async Task BuyRandomPackage(Session session)
+        public async Task<bool> BuyRandomPackage(Session session)
         {
             if (await GetPlayer(session) is not Player player)
-                return;
+                return false;
 
             if (!_packages.Initialized)
                 await _packages.Update();
@@ -371,15 +402,20 @@ namespace MtcgServer
             var possiblePackages = _packages.GetPackages().Where(p => p.Price <= player.Coins).ToArray();
 
             if (possiblePackages.Length < 1)
-                return;
+                return false;
 
             var pickedPackage = possiblePackages[_rnd.Next(possiblePackages.Length)];
+
+            if (player.Coins - pickedPackage.Price < 0)
+                return false;
+
             var newPlayer = player with { Coins = player.Coins - pickedPackage.Price };
 
             foreach (var card in pickedPackage.Cards)
                 newPlayer.Stack.Add(card.CollissionlessDuplicate());
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
+            return true;
         }
 
         /// <summary>
@@ -387,10 +423,10 @@ namespace MtcgServer
         /// </summary>
         /// <param name="session">Session of the player.</param>
         /// <param name="packageId">ID of the package.</param>
-        public async Task BuySpecificPackage(Session session, Guid packageId)
+        public async Task<bool> BuySpecificPackage(Session session, Guid packageId)
         {
             if (await GetPlayer(session) is not Player player)
-                return;
+                return false;
 
             if (!_packages.Initialized)
                 await _packages.Update();
@@ -398,7 +434,10 @@ namespace MtcgServer
             var package = _packages.GetPackage(packageId);
 
             if (package is null)
-                return;
+                return false;
+
+            if (player.Coins - package.Price < 0)
+                return false;
 
             var newPlayer = player with { Coins = player.Coins - package.Price };
 
@@ -406,6 +445,7 @@ namespace MtcgServer
                 newPlayer.Stack.Add(card.CollissionlessDuplicate());
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
+            return true;
         }
 
         /// <summary>

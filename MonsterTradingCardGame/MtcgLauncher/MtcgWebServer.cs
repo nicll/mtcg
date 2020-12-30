@@ -286,6 +286,7 @@ namespace MtcgLauncher
                 return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
             });
 
+            // Push to package store
             _web.RegisterStaticRoute("POST", "/store/packages", async ctx =>
             {
                 if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
@@ -306,16 +307,16 @@ namespace MtcgLauncher
                     {
                         translatedCards.Add(card.CardType switch
                         {
-                            CardType.Dragon => new Dragon { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.FireElf => new FireElf { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.Goblin => new Goblin { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.Knight => new Knight { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.Kraken => new Kraken { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.Ork => new Ork { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.Wizard => new Wizard { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Dragon      => new Dragon      { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.FireElf     => new FireElf     { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Goblin      => new Goblin      { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Knight      => new Knight      { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Kraken      => new Kraken      { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Ork         => new Ork         { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.Wizard      => new Wizard      { Id = Guid.NewGuid(), Damage = card.Damage },
                             CardType.NormalSpell => new NormalSpell { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.WaterSpell => new WaterSpell { Id = Guid.NewGuid(), Damage = card.Damage },
-                            CardType.FireSpell => new FireSpell { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.WaterSpell  => new WaterSpell  { Id = Guid.NewGuid(), Damage = card.Damage },
+                            CardType.FireSpell   => new FireSpell   { Id = Guid.NewGuid(), Damage = card.Damage },
                             _ => throw new ArgumentOutOfRangeException()
                         });
                     }
@@ -329,6 +330,67 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
 
                 return new RestResponse(HttpStatusCode.Created, "Successfully created package with ID: " + packageId.ToString("N"));
+            });
+
+            // Buy random cards
+            _web.RegisterStaticRoute("POST", "/store/packages/buy/random/cards", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!await _server.BuyRandomCards(new Session(token)))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or too little money.");
+
+                return new RestResponse(HttpStatusCode.OK, "Bought randomly chosen cards.");
+            });
+
+            // Buy random package
+            _web.RegisterStaticRoute("POST", "/store/packages/buy/random/package", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!await _server.BuyRandomPackage(new Session(token)))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or too little money.");
+
+                return new RestResponse(HttpStatusCode.OK, "Bought randomly chosen affordable package.");
+            });
+
+            // Buy specific package
+            _web.RegisterResourceRoute("POST", "/store/packages/buy/%", async ctx =>
+            {
+                if (!ctx.Headers.TryGetValue("Authorization", out var sessionStr))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "No authorization supplied.");
+
+                if (!Guid.TryParse(sessionStr, out var token))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
+
+                if (!Guid.TryParse(ctx.Resources[0], out var packageId))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid package id.");
+
+                if (!await _server.BuySpecificPackage(new Session(token), packageId))
+                    return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, invalid package or too little money.");
+
+                return new RestResponse(HttpStatusCode.OK, "Successfully bought package.");
+            });
+
+            // Player scoreboards
+            _web.RegisterStaticRoute("GET", "/scoreboard/%", async ctx =>
+            {
+                var scoreboard = ctx.Resources[0];
+
+                var results = await _server.GetScoreboard(scoreboard, 50);
+
+                if (results is null)
+                    return new RestResponse(HttpStatusCode.NotFound, "Unknown scoreboard.");
+
+                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(results));
             });
         }
 

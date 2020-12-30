@@ -1,5 +1,4 @@
-﻿using MtcgServer;
-using MtcgServer.Databases.Postgres;
+﻿using MtcgServer.Databases.Postgres;
 using RestWebServer;
 using System;
 using System.Diagnostics;

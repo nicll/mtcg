@@ -44,7 +44,7 @@ namespace MtcgServer.Databases.Postgres
         public async Task CreatePlayer(Player player)
         {
             using var conn = await OpenConnection();
-            var cmd = new NpgsqlCommand("INSERT INTO users VALUES (@id, @name, @statusmsg, @emoticon, @coins, @elo, @wins, @losses, @pass_hash)", conn);
+            using var cmd = new NpgsqlCommand("INSERT INTO users VALUES (@id, @name, @statusmsg, @emoticon, @coins, @elo, @wins, @losses, @pass_hash)", conn);
             cmd.Parameters.AddWithValue("@id", player.Id);
             cmd.Parameters.AddWithValue("@name", player.Name);
             cmd.Parameters.AddWithValue("@statusmsg", player.StatusText);
@@ -62,6 +62,31 @@ namespace MtcgServer.Databases.Postgres
         {
             using var conn = await OpenConnection();
             return await _ReadPlayer(id, conn);
+        }
+
+        public async Task<ICollection<Player>> ListPlayers()
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("SELECT id, name, pass_hash, statusmsg, emoticon, coins, elo, wins, losses FROM users", conn);
+            var reader = await cmd.ExecuteReaderAsync();
+            List<Player> players = new();
+
+            while (reader.Read())
+            {
+                var id = reader.GetGuid(0);
+                var name = reader.GetString(1);
+                var pwHash = await reader.GetFieldValueAsync<byte[]>(2);
+                var statusText = reader.GetString(3);
+                var emoticon = reader.GetString(4);
+                var coins = reader.GetInt32(5);
+                var elo = reader.GetInt32(6);
+                var wins = reader.GetInt32(7);
+                var losses = reader.GetInt32(8);
+
+                players.Add(new Player(id, name, pwHash, statusText, emoticon, coins, Array.Empty<ICard>(), Array.Empty<ICard>(), elo, wins, losses));
+            }
+
+            return players;
         }
 
         private async Task<Player?> _ReadPlayer(Guid id, NpgsqlConnection conn)
@@ -272,6 +297,11 @@ namespace MtcgServer.Databases.Postgres
         public async Task CreateCard(ICard card)
         {
             using var conn = await OpenConnection();
+            await _CreateCard(card, conn);
+        }
+
+        private async Task _CreateCard(ICard card, NpgsqlConnection conn)
+        {
             using var cmd = new NpgsqlCommand("INSERT INTO cards VALUES (@id, @damage, @element_type, @monster_type)", conn);
             cmd.Parameters.AddWithValue("@id", card.Id);
             cmd.Parameters.AddWithValue("@damage", card.Damage);
@@ -371,6 +401,10 @@ namespace MtcgServer.Databases.Postgres
         public async Task AddToPackages(CardPackage package)
         {
             using var conn = await OpenConnection();
+
+            foreach (var card in package.Cards)
+                await _CreateCard(card, conn);
+
             using var cmd = new NpgsqlCommand("INSERT INTO packages VALUES (@package_id, @price, @card_ids)", conn);
             cmd.Parameters.AddWithValue("@package_id", package.Id);
             cmd.Parameters.AddWithValue("@price", package.Price);

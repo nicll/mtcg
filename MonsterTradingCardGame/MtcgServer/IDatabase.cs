@@ -30,6 +30,13 @@ namespace MtcgServer
         Task<Player?> ReadPlayer(Guid id);
 
         /// <summary>
+        /// Reads all players' data and instantiates object for all players.
+        /// Does not include the players' cards.
+        /// </summary>
+        /// <returns>A collection of all players.</returns>
+        Task<ICollection<Player>> ListPlayers();
+
+        /// <summary>
         /// Saves the marked changes to the database.
         /// </summary>
         /// <param name="player">The player object.</param>
