@@ -29,7 +29,7 @@ namespace MtcgServer.Databases.Postgres
         {
             // maps the locally defined enum ElementType to the one defined in the database
             NpgsqlConnection.GlobalTypeMapper.MapEnum<ElementType>("element_type");
-            // as monster_type does not have a locally defined equivalent we have to map is manually
+            NpgsqlConnection.GlobalTypeMapper.MapEnum<MonsterType>("monster_type");
 
             // internally used structures
             NpgsqlConnection.GlobalTypeMapper.MapEnum<CardRequirementType>("card_req_types");
@@ -126,7 +126,7 @@ namespace MtcgServer.Databases.Postgres
                     var cardId = reader.GetGuid(0);
                     var damage = reader.GetInt32(1);
                     var elementType = await reader.GetFieldValueAsync<ElementType>(2);
-                    var monsterType = await reader.GetFieldValueAsync<string>(3);
+                    var monsterType = await reader.GetFieldValueAsync<MonsterType>(3);
                     stackCards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
                 }
             }
@@ -142,7 +142,7 @@ namespace MtcgServer.Databases.Postgres
                     var cardId = reader.GetGuid(0);
                     var damage = reader.GetInt32(1);
                     var elementType = await reader.GetFieldValueAsync<ElementType>(2);
-                    var monsterType = await reader.GetFieldValueAsync<string>(3);
+                    var monsterType = await reader.GetFieldValueAsync<MonsterType>(3);
                     deckCards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
                 }
             }
@@ -291,7 +291,7 @@ namespace MtcgServer.Databases.Postgres
 
             var damage = reader.GetInt32(0);
             var elementType = await reader.GetFieldValueAsync<ElementType>(1);
-            var monsterType = await reader.GetFieldValueAsync<string>(2);
+            var monsterType = await reader.GetFieldValueAsync<MonsterType>(2);
 
             return CreateCardFromData(id, damage, elementType, monsterType);
         }
@@ -308,7 +308,7 @@ namespace MtcgServer.Databases.Postgres
             cmd.Parameters.AddWithValue("@id", card.Id);
             cmd.Parameters.AddWithValue("@damage", card.Damage);
             cmd.Parameters.AddWithValue("@element_type", card.Type);
-            cmd.Parameters.AddWithValue("@monster_type", card is Cards.SpellCard ? "spell" : card.GetType().Name.ToLowerInvariant());
+            cmd.Parameters.AddWithValue("@monster_type", card is Cards.SpellCard ? MonsterType.Spell : Enum.Parse(typeof(MonsterType), card.GetType().Name));
             await cmd.PrepareAsync();
             await cmd.ExecuteNonQueryAsync();
         }
@@ -326,7 +326,7 @@ namespace MtcgServer.Databases.Postgres
                 Guid id = reader.GetGuid(0);
                 int damage = reader.GetInt32(1);
                 var elementType = await reader.GetFieldValueAsync<ElementType>(2);
-                var monsterType = await reader.GetFieldValueAsync<string>(3);
+                var monsterType = await reader.GetFieldValueAsync<MonsterType>(3);
                 var card = CreateCardFromData(id, damage, elementType, monsterType);
                 var reqs = await reader.GetFieldValueAsync<CardRequirement[]>(4);
                 List<ICardRequirement> translatedReqs = new(reqs.Length);
@@ -417,7 +417,7 @@ namespace MtcgServer.Databases.Postgres
                     var cardId = reader.GetGuid(0);
                     var damage = reader.GetInt32(1);
                     var elementType = await reader.GetFieldValueAsync<ElementType>(2);
-                    var monsterType = await reader.GetFieldValueAsync<string>(3);
+                    var monsterType = await reader.GetFieldValueAsync<MonsterType>(3);
 
                     cards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
                 }
@@ -428,23 +428,23 @@ namespace MtcgServer.Databases.Postgres
             return packages;
         }
 
-        private static ICard CreateCardFromData(Guid id, int damage, ElementType elementType, string monsterType)
+        private static ICard CreateCardFromData(Guid id, int damage, ElementType elementType, MonsterType monsterType)
             => monsterType switch
         {
-            "spell" => elementType switch
+            MonsterType.Spell => elementType switch
             {
                 ElementType.Normal => new Cards.SpellCards.NormalSpell() { Id = id, Damage = damage },
                 ElementType.Water  => new Cards.SpellCards.WaterSpell()  { Id = id, Damage = damage },
                 ElementType.Fire   => new Cards.SpellCards.FireSpell()   { Id = id, Damage = damage },
                 _ => throw new DatabaseException("Invalid element type for spell card: " + elementType)
             },
-            "dragon"  => new Cards.MonsterCards.Dragon()  { Id = id, Damage = damage },
-            "fireelf" => new Cards.MonsterCards.FireElf() { Id = id, Damage = damage },
-            "goblin"  => new Cards.MonsterCards.Goblin()  { Id = id, Damage = damage },
-            "knight"  => new Cards.MonsterCards.Knight()  { Id = id, Damage = damage },
-            "kraken"  => new Cards.MonsterCards.Kraken()  { Id = id, Damage = damage },
-            "ork"     => new Cards.MonsterCards.Ork()     { Id = id, Damage = damage },
-            "wizard"  => new Cards.MonsterCards.Wizard()  { Id = id, Damage = damage },
+            MonsterType.Dragon  => new Cards.MonsterCards.Dragon()  { Id = id, Damage = damage },
+            MonsterType.FireElf => new Cards.MonsterCards.FireElf() { Id = id, Damage = damage },
+            MonsterType.Goblin  => new Cards.MonsterCards.Goblin()  { Id = id, Damage = damage },
+            MonsterType.Knight  => new Cards.MonsterCards.Knight()  { Id = id, Damage = damage },
+            MonsterType.Kraken  => new Cards.MonsterCards.Kraken()  { Id = id, Damage = damage },
+            MonsterType.Ork     => new Cards.MonsterCards.Ork()     { Id = id, Damage = damage },
+            MonsterType.Wizard  => new Cards.MonsterCards.Wizard()  { Id = id, Damage = damage },
             _ => throw new DatabaseException("Invalid value for monster type: " + monsterType)
         };
 
