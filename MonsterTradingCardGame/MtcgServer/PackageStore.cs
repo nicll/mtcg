@@ -9,14 +9,13 @@ namespace MtcgServer
     internal class PackageStore
     {
         private readonly IDatabase _db;
-        private List<CardPackage> _cache;
+        private List<CardPackage>? _cache;
 
         public bool Initialized => _cache is not null;
 
         public PackageStore(IDatabase db)
         {
             _db = db;
-            _cache = new List<CardPackage>();
         }
 
         /// <summary>

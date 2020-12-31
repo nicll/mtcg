@@ -29,11 +29,12 @@ namespace MtcgLauncher
         /// Registers necessary routes for executing MTCG.
         /// This method may only be called once per instance.
         /// </summary>
-        public void RegisterRoutes()
+        public void Setup()
         {
             _server.AddScoreboard(nameof(HighestELO), new HighestELO());
             _server.AddScoreboard(nameof(LeastLosses), new LeastLosses());
             _server.AddScoreboard(nameof(MostWins), new MostWins());
+            JsonConvert.DefaultSettings = () => new JsonSerializerSettings() { Converters = new List<JsonConverter> { new Newtonsoft.Json.Converters.StringEnumConverter() } };
 
             // Register user
             _web.RegisterStaticRoute("POST", "/register", async ctx =>

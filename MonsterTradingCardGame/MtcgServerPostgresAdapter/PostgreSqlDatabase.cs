@@ -71,7 +71,7 @@ namespace MtcgServer.Databases.Postgres
             using var reader = await cmd.ExecuteReaderAsync();
             List<Player> players = new();
 
-            while (reader.Read())
+            while (await reader.ReadAsync())
             {
                 var id = reader.GetGuid(0);
                 var name = reader.GetString(1);
@@ -207,7 +207,7 @@ namespace MtcgServer.Databases.Postgres
                     StringBuilder sb = new("INSERT INTO stacks VALUES ");
 
                     foreach (var card in player.Stack)
-                        sb.Append('(').Append(player.Id).Append(',').Append(card.Id).Append("),");
+                        sb.Append("('").Append(player.Id).Append("','").Append(card.Id).Append("'),");
 
                     --sb.Length; // last ','
                     addCmd.CommandText = sb.ToString();
@@ -231,7 +231,7 @@ namespace MtcgServer.Databases.Postgres
                     StringBuilder sb = new("INSERT INTO decks VALUES ");
 
                     foreach (var card in player.Stack)
-                        sb.Append('(').Append(player.Id).Append(',').Append(card.Id).Append("),");
+                        sb.Append("('").Append(player.Id).Append("','").Append(card.Id).Append("'),");
 
                     --sb.Length; // last ','
                     addCmd.CommandText = sb.ToString();
@@ -321,7 +321,7 @@ namespace MtcgServer.Databases.Postgres
             using var reader = await cmd.ExecuteReaderAsync();
             List<CardStoreEntry> entries = new();
 
-            while (reader.Read())
+            while (await reader.ReadAsync())
             {
                 Guid id = reader.GetGuid(0);
                 int damage = reader.GetInt32(1);
@@ -405,21 +405,28 @@ namespace MtcgServer.Databases.Postgres
             using var reader = await cmd.ExecuteReaderAsync();
             List<CardPackage> packages = new();
 
-            while (reader.Read())
+            while (await reader.ReadAsync())
             {
                 var packageId = reader.GetGuid(0);
                 var price = reader.GetInt32(1);
                 var cardIds = await reader.GetFieldValueAsync<Guid[]>(2);
                 List<ICard> cards = new(cardIds.Length);
 
-                using (var cardCmd = new NpgsqlCommand("SELECT id, damage, element_type, monster_type FROM cards WHERE id in ('" + String.Join("','", cardIds) + "')", conn))
+                using var cardConn = await OpenConnection();
+                using (var cardCmd = new NpgsqlCommand("SELECT id, damage, element_type, monster_type FROM cards WHERE id in ('" + String.Join("','", cardIds) + "')", cardConn))
                 {
-                    var cardId = reader.GetGuid(0);
-                    var damage = reader.GetInt32(1);
-                    var elementType = await reader.GetFieldValueAsync<ElementType>(2);
-                    var monsterType = await reader.GetFieldValueAsync<MonsterType>(3);
+                    await cardCmd.PrepareAsync();
+                    using var cardReader = await cardCmd.ExecuteReaderAsync();
 
-                    cards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
+                    while (await cardReader.ReadAsync())
+                    {
+                        var cardId = cardReader.GetGuid(0);
+                        var damage = cardReader.GetInt32(1);
+                        var elementType = await cardReader.GetFieldValueAsync<ElementType>(2);
+                        var monsterType = await cardReader.GetFieldValueAsync<MonsterType>(3);
+
+                        cards.Add(CreateCardFromData(cardId, damage, elementType, monsterType));
+                    }
                 }
 
                 packages.Add(new CardPackage(packageId, price, cards));
