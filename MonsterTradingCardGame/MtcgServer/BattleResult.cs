@@ -64,5 +64,18 @@ namespace MtcgServer
             public override string ToString()
                 => "This battle resulted in a draw." + Environment.NewLine + base.ToString();
         }
+
+        /// <summary>
+        /// A battle that was cancelled.
+        /// </summary>
+        public class Cancelled : BattleResult
+        {
+            public Cancelled(string reason) : base(new List<string>() { reason })
+            {
+            }
+
+            public override string ToString()
+                => "The battle was cancelled: " + LogEntries[0];
+        }
     }
 }

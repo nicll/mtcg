@@ -118,6 +118,8 @@ namespace MtcgServer
             // restrict to serialized execution
             await _invokeBattleExclusive.WaitAsync();
 
+            BattleResult result;
+
             if (_firstBattlingPlayer is null) // first player connects
             {
                 _firstBattlingPlayer = player;
@@ -138,9 +140,17 @@ namespace MtcgServer
                 return resultCopy;
             }
 
+            // cancel battle if against yourself
+            if (_firstBattlingPlayer == player)
+            {
+                result = _btlResult = new BattleResult.Cancelled("The player started a battle against themself.");
+                _invokeBattleHang.Release();
+                return result;
+            }
+
             System.Diagnostics.Debug.Assert(_invokeBattleExclusive.CurrentCount == 0);
             // finish second player
-            var result = _btlResult = _btl.RunBattle(player, _firstBattlingPlayer);
+            result = _btlResult = _btl.RunBattle(player, _firstBattlingPlayer);
 
             // let other player's task continue
             _invokeBattleHang.Release();
