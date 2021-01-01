@@ -15,13 +15,15 @@ namespace MtcgServer
             init => _id = value;
         }
 
-        public abstract ElementType Type { get; }
+        public abstract ElementType ElementType { get; }
 
         public abstract int Damage { get; init; }
 
+        public string CardType => GetType().Name;
+
         public int CalculateDamage(in ICard other)
             => this is Cards.MonsterCard && other is Cards.MonsterCard
-                ? _CalculateDamage(other) : (Type, other.Type) switch
+                ? _CalculateDamage(other) : (ElementType, other.ElementType) switch
                 {
                     (ElementType.Water,  ElementType.Fire)   => _CalculateDamage(other) * 2,
                     (ElementType.Fire,   ElementType.Normal) => _CalculateDamage(other) * 2,
@@ -40,6 +42,6 @@ namespace MtcgServer
             => Damage;
 
         public override string ToString()
-            => GetType().Name + " (" + Type + ")";
+            => GetType().Name + " (" + ElementType + ")";
     }
 }

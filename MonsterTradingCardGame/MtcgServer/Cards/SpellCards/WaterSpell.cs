@@ -4,7 +4,7 @@ namespace MtcgServer.Cards.SpellCards
 {
     public class WaterSpell : SpellCard
     {
-        public override ElementType Type => ElementType.Water;
+        public override ElementType ElementType => ElementType.Water;
 
         public override int Damage { get; init; } = 20;
 

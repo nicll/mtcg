@@ -230,13 +230,13 @@ namespace MtcgServer.Databases.Postgres
                 {
                     StringBuilder sb = new("INSERT INTO decks VALUES ");
 
-                    foreach (var card in player.Stack)
+                    foreach (var card in player.Deck)
                         sb.Append("('").Append(player.Id).Append("','").Append(card.Id).Append("'),");
 
                     --sb.Length; // last ','
                     addCmd.CommandText = sb.ToString();
                     await addCmd.PrepareAsync();
-                    System.Diagnostics.Debug.Assert(await addCmd.ExecuteNonQueryAsync() == player.Stack.Count);
+                    System.Diagnostics.Debug.Assert(await addCmd.ExecuteNonQueryAsync() == player.Deck.Count);
                 }
             }
 
@@ -307,7 +307,7 @@ namespace MtcgServer.Databases.Postgres
             using var cmd = new NpgsqlCommand("INSERT INTO cards VALUES (@id, @damage, @element_type, @monster_type)", conn);
             cmd.Parameters.AddWithValue("@id", card.Id);
             cmd.Parameters.AddWithValue("@damage", card.Damage);
-            cmd.Parameters.AddWithValue("@element_type", card.Type);
+            cmd.Parameters.AddWithValue("@element_type", card.ElementType);
             cmd.Parameters.AddWithValue("@monster_type", card is Cards.SpellCard ? MonsterType.Spell : Enum.Parse(typeof(MonsterType), card.GetType().Name));
             await cmd.PrepareAsync();
             await cmd.ExecuteNonQueryAsync();

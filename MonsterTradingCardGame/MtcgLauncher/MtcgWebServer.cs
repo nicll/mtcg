@@ -190,7 +190,7 @@ namespace MtcgLauncher
                 if (await _server.SetDeck(new Session(token), cardIds))
                     return new RestResponse(HttpStatusCode.OK, "Successfully updated deck.");
 
-                return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, not exactly five cards or invalid card ID.");
+                return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, not exactly four cards or invalid card ID.");
             });
 
             // Battling

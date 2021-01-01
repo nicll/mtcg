@@ -4,7 +4,7 @@ namespace MtcgServer.Cards.MonsterCards
 {
     public class Dragon : MonsterCard
     {
-        public override ElementType Type => ElementType.Fire;
+        public override ElementType ElementType => ElementType.Fire;
 
         public override int Damage { get; init; } = 20;
 

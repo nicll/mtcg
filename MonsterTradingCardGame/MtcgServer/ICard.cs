@@ -15,7 +15,12 @@ namespace MtcgServer
         /// <summary>
         /// The element type of the card.
         /// </summary>
-        ElementType Type { get; }
+        ElementType ElementType { get; }
+
+        /// <summary>
+        /// Type of the card as string.
+        /// </summary>
+        string CardType { get; }
 
         /// <summary>
         /// How much damage this card deals.

@@ -124,7 +124,7 @@ namespace MtcgServer
             {
                 _firstBattlingPlayer = player;
                 _invokeBattleExclusive.Release(); // second player may now join
-                System.Diagnostics.Debug.Assert(_invokeBattleHang.CurrentCount == 1);
+                System.Diagnostics.Debug.Assert(_invokeBattleHang.CurrentCount == 0);
                 await _invokeBattleHang.WaitAsync(); // wait until unlocked by second player
 
                 // invoked after second player finished
@@ -141,7 +141,7 @@ namespace MtcgServer
             }
 
             // cancel battle if against yourself
-            if (_firstBattlingPlayer == player)
+            if (_firstBattlingPlayer.Id == player.Id)
             {
                 result = _btlResult = new BattleResult.Cancelled("The player started a battle against themself.");
                 _invokeBattleHang.Release();
