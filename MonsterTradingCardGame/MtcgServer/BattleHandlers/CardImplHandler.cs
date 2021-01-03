@@ -2,11 +2,13 @@
 using System.Collections.Generic;
 using System.Linq;
 using static MtcgServer.Helpers.Random;
+using static MtcgServer.Helpers.Ranges;
 
 namespace MtcgServer.BattleHandlers
 {
     public class CardImplHandler : IBattleHandler
     {
+        private const int MaxRounds = 100;
         private readonly IDatabase _db;
 
         public CardImplHandler(IDatabase db)
@@ -14,6 +16,7 @@ namespace MtcgServer.BattleHandlers
 
         public BattleResult RunBattle(Player p1, Player p2)
         {
+            int round;
             List<string> log = new();
             List<ICard> // the players' decks
                 p1Deck = new(p1.Deck),
@@ -23,7 +26,7 @@ namespace MtcgServer.BattleHandlers
                 throw new ArgumentException("One or more players do not have any cards in their deck.");
 
             // while both still have cards remaining and < 100 rounds
-            for (int round = 0; round < 100 && p1Deck.Any() && p2Deck.Any(); ++round)
+            for (round = 0; round < MaxRounds && p1Deck.Any() && p2Deck.Any(); ++round)
             {
                 log.Add("Round #" + (round + 1) + ":");
                 var result = RunRound(p1Deck, p2Deck, log);
@@ -47,15 +50,17 @@ namespace MtcgServer.BattleHandlers
             if (p1Deck.Any() != p2Deck.Any())
             {
                 var (winner, loser) = p1Deck.Any() ? (p1, p2) : (p2, p1);
+                var eloMod = (int)Math.Pow(1.5D, Math.Sqrt(MaxRounds - round)); // 1.5^sqrt(100-r), allows for up to 54 points
 
                 // save changes
-                _db.SavePlayer(winner with { Wins = winner.Wins + 1, ELO = winner.ELO + 4 }, PlayerChange.AfterGame);
-                _db.SavePlayer(loser with { Losses = loser.Losses + 1, ELO = loser.ELO - 4 }, PlayerChange.AfterGame);
+                _db.SavePlayer(winner with { Wins = winner.Wins + 1, ELO = FitInEloRange(winner.ELO + eloMod) }, PlayerChange.AfterGame);
+                _db.SavePlayer(loser with { Losses = loser.Losses + 1, ELO = FitInEloRange(loser.ELO - eloMod) }, PlayerChange.AfterGame);
 
                 return new BattleResult.Winner(winner, loser, log);
             }
 
             // both players have cards left
+            log.Add("Maximum amount of rounds reached.");
             return new BattleResult.Draw(log);
         }
 

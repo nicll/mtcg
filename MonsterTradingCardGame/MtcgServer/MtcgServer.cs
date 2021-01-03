@@ -2,17 +2,15 @@
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using static MtcgServer.Helpers.PasswordHandling;
 using static MtcgServer.Helpers.Random;
 
 namespace MtcgServer
 {
     public class MtcgServer
     {
-        private const string Pepper = "mtcg--";
         private readonly ConcurrentDictionary<Session, Guid> _sessions;
         private volatile Player? _firstBattlingPlayer;
         private volatile BattleResult? _btlResult;
@@ -22,6 +20,8 @@ namespace MtcgServer
         private readonly CardStore _store;
         private readonly PackageStore _packages;
         private readonly Dictionary<string, IScoreboard> _scoreboards;
+
+        public const int MaxELO = 3000, MinELO = 0;
 
         public MtcgServer(IDatabase database, IBattleHandler battleHandler)
         {
@@ -220,6 +220,10 @@ namespace MtcgServer
             string? statusText = default, string? emoticon = default, string? pass = default)
         {
             if (await GetPlayer(session) is not Player player)
+                return false;
+
+            // check max length
+            if (name?.Length > 8 || statusText?.Length > 80 || emoticon?.Length > 8)
                 return false;
 
             var newPlayer = player with
@@ -504,7 +508,7 @@ namespace MtcgServer
         /// <param name="passwordHash">Hashed password of the player.</param>
         /// <returns></returns>
         private static Player CreateNewPlayer(Guid id, string name, byte[] passwordHash)
-            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 100, 0, 0);
+            => new Player(id, name, passwordHash, string.Empty, string.Empty, 20, Array.Empty<ICard>(), Array.Empty<ICard>(), 1000, 0, 0);
 
         /// <summary>
         /// Saves a duplicate of the card in the database and returns it.
@@ -517,28 +521,5 @@ namespace MtcgServer
             await _db.CreateCard(dup);
             return dup;
         }
-
-        /// <summary>
-        /// Hashes a player's password.
-        /// </summary>
-        /// <param name="playerId">ID of the player.</param>
-        /// <param name="pass">Password of the player.</param>
-        /// <returns>Hashed password of the player.</returns>
-        private static byte[] HashPlayerPassword(Guid playerId, in string pass)
-        {
-            var hasher = SHA256.Create();
-            var combination = Encoding.UTF8.GetBytes(Pepper + playerId.ToString("N") + pass);
-            return hasher.ComputeHash(combination);
-        }
-
-        /// <summary>
-        /// Compare two memory areas for equal content.
-        /// Basically like memcmp().
-        /// </summary>
-        /// <param name="left">First memory area.</param>
-        /// <param name="right">Second memory area.</param>
-        /// <returns>Whether or not the two areas contain the same content.</returns>
-        private static bool CompareHashes(in ReadOnlySpan<byte> left, in ReadOnlySpan<byte> right)
-            => left.SequenceEqual(right);
     }
 }

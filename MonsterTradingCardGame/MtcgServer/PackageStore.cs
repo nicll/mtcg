@@ -9,13 +9,16 @@ namespace MtcgServer
     internal class PackageStore
     {
         private readonly IDatabase _db;
-        private List<CardPackage>? _cache;
+        private List<CardPackage> _cache;
 
         public bool Initialized => _cache is not null;
 
+#pragma warning disable CS8618
         public PackageStore(IDatabase db)
+#pragma warning restore CS8618
         {
             _db = db;
+            // Usage of this class without checking Initialized is unexpected
         }
 
         /// <summary>

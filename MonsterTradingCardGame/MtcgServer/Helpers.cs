@@ -1,6 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.CompilerServices;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace MtcgServer
 {
@@ -68,6 +71,70 @@ namespace MtcgServer
                 collection.Remove(element);
                 return element;
             }
+        }
+
+        /// <summary>
+        /// This class contains helping functions for handling passwords.
+        /// </summary>
+        internal static class PasswordHandling
+        {
+            private const string Pepper = "mtcg--";
+
+            /// <summary>
+            /// Hashes a player's password.
+            /// </summary>
+            /// <param name="playerId">ID of the player.</param>
+            /// <param name="pass">Password of the player.</param>
+            /// <returns>Hashed password of the player.</returns>
+            internal static byte[] HashPlayerPassword(Guid playerId, in string pass)
+            {
+                var hasher = SHA256.Create();
+                var combination = Encoding.UTF8.GetBytes(Pepper + playerId.ToString("N") + pass);
+                return hasher.ComputeHash(combination);
+            }
+
+            /// <summary>
+            /// Compare two memory areas for equal content.
+            /// Basically like memcmp().
+            /// </summary>
+            /// <param name="left">First memory area.</param>
+            /// <param name="right">Second memory area.</param>
+            /// <returns>Whether or not the two areas contain the same content.</returns>
+            internal static bool CompareHashes(in ReadOnlySpan<byte> left, in ReadOnlySpan<byte> right)
+                => left.SequenceEqual(right);
+        }
+
+        internal static bool In<T>(this T t, params T[] ts)
+            => Ranges.In(t, ts);
+
+        /// <summary>
+        /// This class contains some functions that are not in <see cref="Math"/>.
+        /// </summary>
+        internal static class Ranges
+        {
+            /// <summary>
+            /// Fits an integer in between two bounds.
+            /// </summary>
+            /// <param name="number">The main integer.</param>
+            /// <param name="min">The lower bound.</param>
+            /// <param name="max">The upper bound.</param>
+            /// <returns>The given integer or a boundary.</returns>
+            [MethodImpl(MethodImplOptions.AggressiveInlining)]
+            internal static int FitInRange(int number, int min, int max)
+                => number < min ? min : number > max ? max : number;
+
+            /// <summary>
+            /// Fits an integer into the ELO range.
+            /// Lower bound is <see cref="MtcgServer.MinELO"/>.
+            /// Upper bound is <see cref="MtcgServer.MaxELO"/>.
+            /// </summary>
+            /// <param name="number">The main integer.</param>
+            /// <returns>Integer limited to ELO range.</returns>
+            internal static int FitInEloRange(int number)
+                => FitInRange(number, MtcgServer.MinELO, MtcgServer.MaxELO);
+
+            internal static bool In<T>(T t, params T[] ts)
+                => ts.Contains(t);
         }
 
         /// <summary>

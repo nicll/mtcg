@@ -10,6 +10,6 @@ namespace MtcgLauncher.Models
 
         public string? StatusText { get; set; }
 
-        public string? Emoticon { get; set; }
+        public string? EmoticonText { get; set; }
     }
 }

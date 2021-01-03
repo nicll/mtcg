@@ -117,8 +117,8 @@ namespace MtcgLauncher
                 if (!TryGetObject<EditPlayerModel>(ctx, out var editModel))
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid edit.");
 
-                if (!await _server.EditPlayer(new Session(token), editModel.Username, editModel.StatusText, editModel.Emoticon, editModel.Password))
-                    return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
+                if (!await _server.EditPlayer(new Session(token), editModel.Username, editModel.StatusText, editModel.EmoticonText, editModel.Password))
+                    return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session or invalid field length.");
 
                 return new RestResponse(HttpStatusCode.OK, "Changes have been saved.");
             });
