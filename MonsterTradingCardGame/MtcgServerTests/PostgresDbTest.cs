@@ -1,4 +1,5 @@
-﻿using NUnit.Framework;
+﻿using MtcgServer.Databases.Postgres;
+using NUnit.Framework;
 using System;
 using static MtcgServerTests.Constants;
 
@@ -11,24 +12,35 @@ namespace MtcgServerTests
         [SetUp]
         public void Setup()
         {
-            _db = new MtcgServer.Databases.Postgres.PostgreSqlDatabase("Server=localhost;User Id=ro_user;Password=ro_user;Database=mtcg");
+            _db = new PostgreSqlDatabase("Server=127.0.0.1; Port=5432; Database=mtcg; User Id=mtcg_user; Password=mtcg_pass");
         }
 
         [Test]
         public void TestSearchPlayer()
         {
-            var playerId = _db.SearchPlayer(DemoUserName);
+            var playerId = _db.SearchPlayer(DemoUser1Name).Result;
 
-            Assert.AreEqual(DemoUserId, playerId);
+            Assert.AreNotEqual(Guid.Empty, playerId);
+            Assert.AreEqual(DemoUser1Id, playerId);
         }
 
         [Test]
-        public void TestReadPlayer()
+        public void TestReadPlayerById()
         {
-            var player = _db.ReadPlayer(DemoUserId);
+            var player = _db.ReadPlayer(DemoUser1Id).Result;
 
-            Assert.AreEqual(DemoUserId, player.ID);
-            Assert.AreEqual(DemoUserName, player.Name);
+            Assert.NotNull(player);
+            Assert.AreEqual(DemoUser1Id, player.Id);
+            Assert.AreEqual(DemoUser1Name, player.Name);
+        }
+
+        [Test]
+        public void TestReadCard()
+        {
+            var card = _db.ReadCard(DemoCard1Id).Result;
+
+            Assert.NotNull(card);
+            Assert.AreEqual(DemoCard1Id, card.Id);
         }
     }
 }
