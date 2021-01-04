@@ -17,7 +17,7 @@ namespace MtcgServerTests
             int waterDamage = water.CalculateDamage(fire);
 
             // water > fire
-            Assert.AreEqual(20, fireDamage);
+            Assert.AreEqual(10, fireDamage);
             Assert.AreEqual(40, waterDamage);
         }
 
@@ -32,7 +32,7 @@ namespace MtcgServerTests
 
             // fire > normal
             Assert.AreEqual(40, fireDamage);
-            Assert.AreEqual(20, normalDamage);
+            Assert.AreEqual(10, normalDamage);
         }
 
         [Test]
@@ -46,7 +46,7 @@ namespace MtcgServerTests
 
             // normal > water
             Assert.AreEqual(40, normalDamage);
-            Assert.AreEqual(20, waterDamage);
+            Assert.AreEqual(10, waterDamage);
         }
 
         [Test]
@@ -88,7 +88,7 @@ namespace MtcgServerTests
             int dragonDamage = dragon.CalculateDamage(elf);
 
             // no element type effectiveness applies
-            // FireElves evade dragon attacks
+            // fire elves evade dragon attacks
             Assert.AreEqual(20, elfDamage);
             Assert.AreEqual(0, dragonDamage);
         }
@@ -103,7 +103,7 @@ namespace MtcgServerTests
             int dragonDamage = dragon.CalculateDamage(goblin);
 
             // no element type effectiveness applies
-            // Goblins don't attack dragons
+            // goblins don't attack dragons
             Assert.AreEqual(0, goblinDamage);
             Assert.AreEqual(20, dragonDamage);
         }
@@ -118,9 +118,9 @@ namespace MtcgServerTests
             int waterDamage = water.CalculateDamage(knight);
 
             // normal > water
-            // Water spell drowns knights instantly
+            // water spell drowns knights instantly
             Assert.AreEqual(20 * 2, knightDamage);
-            Assert.AreEqual(9999, waterDamage);
+            Assert.AreEqual(9999 / 2, waterDamage);
         }
 
         [Test]
@@ -133,8 +133,8 @@ namespace MtcgServerTests
             int normalDamage = normal.CalculateDamage(kraken);
 
             // normal > water
-            // Kraken not affected by spells
-            Assert.AreEqual(20, krakenDamage);
+            // kraken not affected by spells
+            Assert.AreEqual(10, krakenDamage);
             Assert.AreEqual(0, normalDamage);
         }
 
@@ -148,7 +148,7 @@ namespace MtcgServerTests
             int waterDamage = water.CalculateDamage(kraken);
 
             // no element type effectiveness applies
-            // Kraken not affected by spells
+            // kraken not affected by spells
             Assert.AreEqual(20, krakenDamage);
             Assert.AreEqual(0, waterDamage);
         }
@@ -163,7 +163,7 @@ namespace MtcgServerTests
             int fireDamage = fire.CalculateDamage(kraken);
 
             // water > fire
-            // Kraken not affected by spells
+            // kraken not affected by spells
             Assert.AreEqual(40, krakenDamage);
             Assert.AreEqual(0, fireDamage);
         }

@@ -1,4 +1,5 @@
-﻿using MtcgServer.Databases.Postgres;
+﻿using MtcgServer.Cards.SpellCards;
+using MtcgServer.Databases.Postgres;
 using NUnit.Framework;
 using System;
 using static MtcgServerTests.Constants;
@@ -32,6 +33,22 @@ namespace MtcgServerTests
             Assert.NotNull(player);
             Assert.AreEqual(DemoUser1Id, player.Id);
             Assert.AreEqual(DemoUser1Name, player.Name);
+        }
+
+        [Test]
+        public void TestCreateCard()
+        {
+            var card = new NormalSpell() { Id = DemoCard1Id, Damage = 24 };
+
+            try
+            {
+                _db.CreateCard(card).RunSynchronously();
+            }
+            catch (Npgsql.PostgresException)
+            {
+                // may happen when database has not been reset as card has already been inserted before
+                Assert.Warn("Did not create demo card as ID already exists.");
+            }
         }
 
         [Test]
