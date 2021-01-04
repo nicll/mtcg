@@ -26,8 +26,11 @@ namespace MtcgServer
                 ? _CalculateDamage(other) : (ElementType, other.ElementType) switch
                 {
                     (ElementType.Water,  ElementType.Fire)   => _CalculateDamage(other) * 2,
+                    (ElementType.Fire,   ElementType.Water)  => _CalculateDamage(other) / 2,
                     (ElementType.Fire,   ElementType.Normal) => _CalculateDamage(other) * 2,
+                    (ElementType.Normal, ElementType.Fire)   => _CalculateDamage(other) / 2,
                     (ElementType.Normal, ElementType.Water)  => _CalculateDamage(other) * 2,
+                    (ElementType.Water,  ElementType.Normal) => _CalculateDamage(other) / 2,
                     _ => _CalculateDamage(other)
                 };
 
