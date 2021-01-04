@@ -124,7 +124,7 @@ namespace MtcgLauncher
             });
 
             // Get any player stack
-            _web.RegisterResourceRoute("GET", "/users/%/stack", async ctx =>
+            _web.RegisterResourceRoute("GET", "/profile/%/stack", async ctx =>
             {
                 var username = ctx.Resources[0];
 
@@ -135,7 +135,7 @@ namespace MtcgLauncher
             });
 
             // Get any player deck
-            _web.RegisterResourceRoute("GET", "/users/%/deck", async ctx =>
+            _web.RegisterResourceRoute("GET", "/profile/%/deck", async ctx =>
             {
                 var username = ctx.Resources[0];
 
