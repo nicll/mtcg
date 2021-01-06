@@ -46,5 +46,11 @@ namespace MtcgServer
 
         public override string ToString()
             => GetType().Name + " (" + ElementType + ")";
+
+        public override bool Equals(object? obj)
+            => obj is CardBase card && _id == card._id;
+
+        public override int GetHashCode()
+            => _id.GetHashCode();
     }
 }

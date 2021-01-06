@@ -71,6 +71,7 @@ namespace MtcgServer
             // update database and reload
             await _db.SavePlayer(second, PlayerChange.AfterTrade);
             await _db.SavePlayer(first, PlayerChange.AfterTrade);
+            await _db.RemoveFromStore(other);
             await Update();
             return true;
         }
