@@ -55,5 +55,13 @@ namespace MtcgServerTests
             Assert.AreEqual(DemoUser1Id, player.Id);
             Assert.AreEqual(DemoUser1Name, player.Name);
         }
+
+        [Test]
+        public void TestGetPlayerByInvalidName()
+        {
+            var player = _server.GetPlayer("non-existent").Result;
+
+            Assert.IsNull(player);
+        }
     }
 }
