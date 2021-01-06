@@ -34,6 +34,7 @@ namespace MtcgLauncher
             _server.AddScoreboard(nameof(HighestELO), new HighestELO());
             _server.AddScoreboard(nameof(LeastLosses), new LeastLosses());
             _server.AddScoreboard(nameof(MostWins), new MostWins());
+            _server.AddScoreboard(nameof(BestWLRatio), new BestWLRatio());
             JsonConvert.DefaultSettings = () => new JsonSerializerSettings() { Converters = new List<JsonConverter> { new Newtonsoft.Json.Converters.StringEnumConverter() } };
 
             // Register user
@@ -430,6 +431,13 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.NotFound, "Unknown scoreboard.");
 
                 return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(results));
+            });
+
+            // Create demo data, needed as otherwise IDs would be unpredictable
+            _web.RegisterStaticRoute("POST", "/demo", async _ =>
+            {
+                await _server.ResetForDemo();
+                return new RestResponse(HttpStatusCode.OK, "Created demo data.");
             });
         }
 
