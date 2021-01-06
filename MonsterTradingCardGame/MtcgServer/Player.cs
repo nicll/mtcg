@@ -9,6 +9,8 @@ namespace MtcgServer
     public record Player (Guid Id, string Name, byte[] PasswordHash, string StatusText, string EmoticonText,
         int Coins, ICollection<ICard> Stack, ICollection<ICard> Deck, int ELO, int Wins, int Losses)
     {
+        public double WinLossRatio => (double)Wins / Losses;
+
         // prevents serialization of password hash by Json.NET
         public bool ShouldSerializePasswordHash() => false;
     }
