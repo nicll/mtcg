@@ -352,7 +352,7 @@ namespace MtcgServer.Databases.Postgres
         public async Task AddToStore(Player owner, ICard card, ICollection<ICardRequirement> requirements)
         {
             using var conn = await OpenConnection();
-            using var cmd = new NpgsqlCommand("INSERT INTO store_entries VALUES (@card_id, @user_id, @req_type, @reqs)", conn);
+            using var cmd = new NpgsqlCommand("INSERT INTO store_entries VALUES (@card_id, @user_id, @reqs)", conn);
             cmd.Parameters.AddWithValue("@card_id", card.Id);
             cmd.Parameters.AddWithValue("@user_id", owner.Id);
 
@@ -381,6 +381,19 @@ namespace MtcgServer.Databases.Postgres
             cmd.Parameters.AddWithValue("@card_id", card.Id);
             await cmd.PrepareAsync();
             await cmd.ExecuteNonQueryAsync();
+        }
+
+        public async Task<bool> IsAnyInStore(ICollection<ICard> cards)
+        {
+            using var conn = await OpenConnection();
+            using var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM store_entries WHERE card_id IN ('" + String.Join("','", cards.Select(c => c.Id)) + "')");
+            await cmd.PrepareAsync();
+            var result = await cmd.ExecuteScalarAsync();
+
+            if (result is not int num)
+                throw new DatabaseException("SELECT COUNT(*) returned incorrect type: " + (result?.GetType().Name ?? "<null>"));
+
+            return num > 0;
         }
 
         public async Task AddToPackages(CardPackage package)
@@ -413,7 +426,7 @@ namespace MtcgServer.Databases.Postgres
                 List<ICard> cards = new(cardIds.Length);
 
                 using var cardConn = await OpenConnection();
-                using (var cardCmd = new NpgsqlCommand("SELECT id, damage, element_type, monster_type FROM cards WHERE id in ('" + String.Join("','", cardIds) + "')", cardConn))
+                using (var cardCmd = new NpgsqlCommand("SELECT id, damage, element_type, monster_type FROM cards WHERE id IN ('" + String.Join("','", cardIds) + "')", cardConn))
                 {
                     await cardCmd.PrepareAsync();
                     using var cardReader = await cardCmd.ExecuteReaderAsync();
@@ -433,6 +446,29 @@ namespace MtcgServer.Databases.Postgres
             }
 
             return packages;
+        }
+
+        public async Task Reset()
+        {
+            using var conn = await OpenConnection();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM packages", conn))
+                await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM store_entries", conn))
+                await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM stacks", conn))
+                await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM decks", conn))
+                await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM cards", conn))
+                await cmd.ExecuteNonQueryAsync();
+
+            using (var cmd = new NpgsqlCommand("DELETE FROM users", conn))
+                await cmd.ExecuteNonQueryAsync();
         }
 
         private static ICard CreateCardFromData(Guid id, int damage, ElementType elementType, MonsterType monsterType)

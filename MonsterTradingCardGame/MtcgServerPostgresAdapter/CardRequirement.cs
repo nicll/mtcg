@@ -1,11 +1,14 @@
-﻿using System;
+﻿using NpgsqlTypes;
+using System;
 
 namespace MtcgServer.Databases.Postgres
 {
-    internal struct CardRequirement
+    internal class CardRequirement
     {
-        internal CardRequirementType ReqType;
+        [PgName("req_type")]
+        public CardRequirementType ReqType;
 
-        internal int ReqValue;
+        [PgName("req_value")]
+        public int ReqValue;
     }
 }
