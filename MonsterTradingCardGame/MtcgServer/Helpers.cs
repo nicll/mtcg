@@ -4,6 +4,7 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Security.Cryptography;
 using System.Text;
+using System.Threading.Tasks;
 
 namespace MtcgServer
 {
@@ -135,6 +136,22 @@ namespace MtcgServer
 
             internal static bool In<T>(T t, params T[] ts)
                 => ts.Contains(t);
+        }
+
+        /// <summary>
+        /// Contains helper functions for handling exceptions.
+        /// </summary>
+        internal static class Exceptions
+        {
+            /// <summary>
+            /// Swallows any exception and traces it. 
+            /// </summary>
+            /// <param name="func">The wrapped function.</param>
+            internal static async Task NoThrow(Func<Task> func)
+            {
+                try { await func().ConfigureAwait(false); }
+                catch (Exception e) { System.Diagnostics.Trace.TraceWarning(e.Message); }
+            }
         }
 
         /// <summary>

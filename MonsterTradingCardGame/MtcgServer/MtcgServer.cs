@@ -1,9 +1,12 @@
-﻿using System;
+﻿using MtcgServer.Cards.MonsterCards;
+using MtcgServer.Cards.SpellCards;
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using static MtcgServer.Helpers.Exceptions;
 using static MtcgServer.Helpers.PasswordHandling;
 using static MtcgServer.Helpers.Random;
 
@@ -261,6 +264,9 @@ namespace MtcgServer
                 player.Deck.Add(card);
             }
 
+            if (await _db.IsAnyInStore(player.Deck))
+                return false;
+
             await _db.SavePlayer(player, PlayerChange.Deck);
             return true;
         }
@@ -482,6 +488,47 @@ namespace MtcgServer
 
             await _db.SavePlayer(newPlayer, PlayerChange.AfterBuyPackage);
             return true;
+        }
+
+        public async Task ResetForDemo()
+        {
+            await NoThrow(async () => await _db.Reset());
+
+            int guidCounter = 0;
+            var cardGuid = "00000001-0000-0000-0000-0000000000{0}"; // last two digits variable
+            Func<Guid> guidGen = () => Guid.Parse(String.Format(cardGuid, (++guidCounter).ToString("00")));
+
+            var pkgs = new[]
+            {
+                    new CardPackage(Guid.Parse("00000001-0000-0000-0000-000000000000"), 5, new ICard[]
+                    { new Dragon { Id = guidGen(), Damage = 50 }, new Goblin { Id = guidGen(), Damage = 10 }, new WaterSpell { Id = guidGen(), Damage= 20 }, new Ork { Id = guidGen(), Damage = 45 }, new FireSpell   { Id = guidGen(), Damage = 25 } }),
+                    new CardPackage(Guid.Parse("00000002-0000-0000-0000-000000000000"), 5, new ICard[]
+                    { new Dragon { Id = guidGen(), Damage = 55 }, new Goblin { Id = guidGen(), Damage =  9 }, new WaterSpell { Id = guidGen(), Damage= 21 }, new Ork { Id = guidGen(), Damage = 55 }, new WaterSpell  { Id = guidGen(), Damage = 23 } }),
+                    new CardPackage(Guid.Parse("00000003-0000-0000-0000-000000000000"), 5, new ICard[]
+                    { new Dragon { Id = guidGen(), Damage = 70 }, new Goblin { Id = guidGen(), Damage = 11 }, new WaterSpell { Id = guidGen(), Damage= 22 }, new Ork { Id = guidGen(), Damage = 40 }, new NormalSpell { Id = guidGen(), Damage = 28 } }),
+                    new CardPackage(Guid.Parse("00000004-0000-0000-0000-000000000000"), 5, new ICard[]
+                    { new Dragon { Id = guidGen(), Damage = 50 }, new Goblin { Id = guidGen(), Damage = 10 }, new WaterSpell { Id = guidGen(), Damage= 20 }, new Ork { Id = guidGen(), Damage = 45 }, new WaterSpell  { Id = guidGen(), Damage = 25 } }),
+                    new CardPackage(Guid.Parse("00000005-0000-0000-0000-000000000000"), 55, new ICard[]
+                    { new Dragon { Id = guidGen(), Damage = 55 }, new Goblin { Id = guidGen(), Damage =  9 }, new WaterSpell { Id = guidGen(), Damage= 21 }, new Ork { Id = guidGen(), Damage = 55 }, new FireSpell   { Id = guidGen(), Damage = 23 } })
+                };
+
+            await NoThrow(async () => await _db.CreatePlayer(new Player(Guid.Parse("00000000-0000-0000-0001-000000000000"),
+                "tester1", Convert.FromBase64String("7ZXG3g/GuVxwOlVM4fv3qWxV6/kjmDCmElzOG0iM5c0="), String.Empty, String.Empty,
+                20, Array.Empty<ICard>(), Array.Empty<ICard>(), 1000, 3, 5)));
+
+            await NoThrow(async () => await _db.CreatePlayer(new Player(Guid.Parse("00000000-0000-0000-0002-000000000000"),
+                "tester2", Convert.FromBase64String("WS4I8xLJT5HeZy1oYUlQENRPlwDHl7Ndh7AsjxsaSvg="), String.Empty, String.Empty,
+                20, Array.Empty<ICard>(), Array.Empty<ICard>(), 1000, 5, 3)));
+
+            foreach (var pkg in pkgs)
+                await NoThrow(async () => await _db.AddToPackages(pkg));
+
+            // reset player values
+            await _db.SavePlayer(new Player(Guid.Parse("00000000-0000-0000-0001-000000000000"), null!, null!, null!, null!, 15, // tester1 owns 1 package
+                pkgs[0].Cards, pkgs[0].Cards.Take(4).ToArray(), 1000, 0, 0), PlayerChange.Coins | PlayerChange.Stack | PlayerChange.Deck);
+            await _db.SavePlayer(new Player(Guid.Parse("00000000-0000-0000-0002-000000000000"), null!, null!, null!, null!, 15, // tester2 owns 3 packages (+ some extra money to buy more)
+                pkgs.Take(3).SelectMany(p => p.Cards).ToArray(), pkgs.Take(3).SelectMany(p => p.Cards).OrderByDescending(c => c.Damage).Take(4).ToArray(), 1000, 0, 0),
+                PlayerChange.Coins | PlayerChange.Stack | PlayerChange.Deck);
         }
 
         /// <summary>

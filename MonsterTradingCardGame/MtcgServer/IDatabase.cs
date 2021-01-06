@@ -78,6 +78,13 @@ namespace MtcgServer
         Task AddToStore(Player owner, ICard card, ICollection<ICardRequirement> requirements);
 
         /// <summary>
+        /// Checks whether any of the given cards are currently marked for trading.
+        /// </summary>
+        /// <param name="cards">A collection of cards.</param>
+        /// <returns>Whether any given card is marked for trading.</returns>
+        Task<bool> IsAnyInStore(ICollection<ICard> cards);
+
+        /// <summary>
         /// Removes a card from the store.
         /// This happens when a card is traded or retracted.
         /// </summary>
@@ -95,5 +102,10 @@ namespace MtcgServer
         /// </summary>
         /// <returns>List of packages.</returns>
         Task<ICollection<CardPackage>> GetPackages();
+
+        /// <summary>
+        /// Resets the entire database and deletes all entries.
+        /// </summary>
+        Task Reset();
     }
 }
