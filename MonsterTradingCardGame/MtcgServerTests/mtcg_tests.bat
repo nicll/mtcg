@@ -58,11 +58,13 @@ echo Get own stack (alternate way)
 echo Get own deck (alternate way)
 %curl_get% http://localhost:10001/profile/tester2/deck
 
-echo Show tradable cards
-%curl_get% http://localhost:10001/store/cards
+pause
 
 echo Mark card as tradable
-%curl_post% http://localhost:10001/store/cards/new -d "{\"CardId\": \"00000001-0000-0000-0000-000000000015\", \"Requirements\": [ { \"RequirementType\": \"IsMonsterCard\" }, { \"RequirementType\": \"MinimumDamage\": 10 } ]}"
+%curl_post% http://localhost:10001/store/cards/new -d "{\"CardId\": \"00000001-0000-0000-0000-000000000015\", \"Requirements\": [ { \"RequirementType\": \"IsMonsterCard\" }, { \"RequirementType\": \"MinimumDamage\", \"MinimumDamage\": 10 } ]}"
+
+echo Show tradable cards, should contain one entry
+%curl_get% http://localhost:10001/store/cards
 
 echo Show packages
 %curl_get% http://localhost:10001/store/packages
@@ -79,6 +81,8 @@ echo Show least losses scoreboard
 echo Show least losses scoreboard
 %curl_get% http://localhost:10001/scoreboards/bestwlratio
 
+pause
+
 
 :pack
 echo Buy specific package (00000004-0000-0000-0000-000000000000)
@@ -90,13 +94,22 @@ echo Buy random package
 echo Buy random cards
 %curl_post% http://localhost:10001/store/packages/buy/random/cards
 
-rem TODO: POST /BATTLE, POST /store/cards/trade, GET /store/cards/eligible
+echo Confirm by checking profile
+%curl_get% http://localhost:10001/profile
+
+echo Get eligible trade deals, should return above deal
+%curl_get% http://localhost:10001/store/cards/eligible -d "\"00000001-0000-0000-0000-000000000014\""
+
+echo Trade cards
+%curl_post% http://localhost:10001/store/cards/trade -d "{ \"OwnCard\": \"00000001-0000-0000-0000-000000000014\", \"OtherCard\": \"00000001-0000-0000-0000-000000000015\" }"
+
+rem TODO: POST /BATTLE
 
 set rnd=%random%
 echo Create new test user
-%curl_post% -D - http://localhost:10001/login -d "{\"username\": \"u%rnd%\", \"password\": \"pw\"}"
+%curl_post% -D - http://localhost:10001/register -d "{\"username\": \"u%rnd%\", \"password\": \"pw\"}"
 set /p auth=Copy Authorization value here: 
-set cont=pack
+set cont=end
 goto setup
 
 
