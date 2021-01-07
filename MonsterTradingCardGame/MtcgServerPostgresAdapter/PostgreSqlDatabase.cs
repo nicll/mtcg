@@ -386,11 +386,11 @@ namespace MtcgServer.Databases.Postgres
         public async Task<bool> IsAnyInStore(ICollection<ICard> cards)
         {
             using var conn = await OpenConnection();
-            using var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM store_entries WHERE card_id IN ('" + String.Join("','", cards.Select(c => c.Id)) + "')");
+            using var cmd = new NpgsqlCommand("SELECT COUNT(*) FROM store_entries WHERE card_id IN ('" + String.Join("','", cards.Select(c => c.Id)) + "')", conn);
             await cmd.PrepareAsync();
             var result = await cmd.ExecuteScalarAsync();
 
-            if (result is not int num)
+            if (result is not long num)
                 throw new DatabaseException("SELECT COUNT(*) returned incorrect type: " + (result?.GetType().Name ?? "<null>"));
 
             return num > 0;
