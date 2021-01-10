@@ -18,6 +18,7 @@ namespace MtcgLauncher
     {
         private readonly IWebServer _web;
         private readonly MtcgServer.MtcgServer _server;
+        private readonly Dictionary<string, string> _jsonHeader = new() { { "Content-Type", "application/json" } };
 
         public MtcgWebServer(IWebServer webServer, IDatabase database, IBattleHandler battleHandler)
         {
@@ -88,7 +89,7 @@ namespace MtcgLauncher
                 if (await _server.GetPlayer(username) is not Player player)
                     return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player));
             });
 
             // Get own player "profile"
@@ -103,7 +104,7 @@ namespace MtcgLauncher
                 if (await _server.GetPlayer(new Session(token)) is not Player player)
                     return new RestResponse(HttpStatusCode.Unauthorized, "Invalid session.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player));
             });
 
             // Edit player "profile"
@@ -130,7 +131,7 @@ namespace MtcgLauncher
                 var username = ctx.Resources[0];
 
                 if (await _server.GetPlayer(username) is Player player)
-                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Stack));
+                    return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player.Stack));
 
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
             });
@@ -141,7 +142,7 @@ namespace MtcgLauncher
                 var username = ctx.Resources[0];
 
                 if (await _server.GetPlayer(username) is Player player)
-                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Deck));
+                    return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player.Deck));
 
                 return new RestResponse(HttpStatusCode.NotFound, "Player was not found.");
             });
@@ -156,7 +157,7 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
 
                 if (await _server.GetPlayer(new Session(token)) is Player player)
-                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Stack));
+                    return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player.Stack));
 
                 return new RestResponse(HttpStatusCode.Unauthorized, "Player not logged in.");
             });
@@ -171,7 +172,7 @@ namespace MtcgLauncher
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid authorization supplied.");
 
                 if (await _server.GetPlayer(new Session(token)) is Player player)
-                    return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(player.Deck));
+                    return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(player.Deck));
 
                 return new RestResponse(HttpStatusCode.Unauthorized, "Player not logged in.");
             });
@@ -206,12 +207,12 @@ namespace MtcgLauncher
                 if (await _server.InvokeBattle(new Session(token)) is not BattleResult result)
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid session or invalid deck configuration.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(result));
             });
 
             // View card store ("trading")
             _web.RegisterStaticRoute("GET", "/store/cards", async _ =>
-                new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAvailableStoreCards())));
+                new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(await _server.GetAvailableStoreCards())));
 
             // View card store ("trading") eligible entries
             _web.RegisterStaticRoute("GET", "/store/cards/eligible", async ctx =>
@@ -230,7 +231,7 @@ namespace MtcgLauncher
                 if (result is null)
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid session, invalid card or card not in stack");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(result));
             });
 
             // Push to card store ("trading push")
@@ -298,7 +299,7 @@ namespace MtcgLauncher
 
             // Get packages
             _web.RegisterStaticRoute("GET", "/store/packages", async _ =>
-                new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAllPackages())));
+                new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(await _server.GetAllPackages())));
 
             // Get affordable packages (max price in route)
             _web.RegisterResourceRoute("GET", "/store/packages/max/%", async ctx =>
@@ -306,7 +307,7 @@ namespace MtcgLauncher
                 if (!int.TryParse(ctx.Resources[0], out var maxPrice))
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid maximum price.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(await _server.GetAffordablePackages(maxPrice)));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(await _server.GetAffordablePackages(maxPrice)));
             });
 
             // Get affordable packages for player
@@ -323,7 +324,7 @@ namespace MtcgLauncher
                 if (result is null)
                     return new RestResponse(HttpStatusCode.BadRequest, "Invalid session.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(result));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(result));
             });
 
             // Push to package store
@@ -430,7 +431,7 @@ namespace MtcgLauncher
                 if (results is null)
                     return new RestResponse(HttpStatusCode.NotFound, "Unknown scoreboard.");
 
-                return new RestResponse(HttpStatusCode.OK, JsonConvert.SerializeObject(results));
+                return new RestResponse(HttpStatusCode.OK, _jsonHeader, JsonConvert.SerializeObject(results));
             });
 
             // Create demo data, needed as otherwise IDs would be unpredictable
