@@ -27,7 +27,7 @@ namespace MtcgServer
         public async Task Update()
         {
             // no locking needed as assignment of reference types is atomic
-            _cache = (await _db.GetPackages()).ToList();
+            _cache = (await _db.ReadPackages()).ToList();
         }
 
         /// <summary>

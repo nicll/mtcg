@@ -101,7 +101,7 @@ namespace MtcgServer
         /// Gets a collection of all currently defined packages.
         /// </summary>
         /// <returns>List of packages.</returns>
-        Task<ICollection<CardPackage>> GetPackages();
+        Task<ICollection<CardPackage>> ReadPackages();
 
         /// <summary>
         /// Resets the entire database and deletes all entries.

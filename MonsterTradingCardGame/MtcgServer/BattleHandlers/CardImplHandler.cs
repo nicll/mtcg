@@ -28,7 +28,7 @@ namespace MtcgServer.BattleHandlers
             // while both still have cards remaining and < 100 rounds
             for (round = 0; round < MaxRounds && p1Deck.Any() && p2Deck.Any(); ++round)
             {
-                log.Add("Round #" + (round + 1) + ":");
+                log.Add("Round #" + (round + 1) + " starts!");
                 var result = RunRound(p1Deck, p2Deck, log);
 
                 // if not draw
@@ -37,8 +37,8 @@ namespace MtcgServer.BattleHandlers
                     from.Remove(card);
                     to.Add(card);
                     log.Add($"Card {card} has switched.");
-                    log.Add($"{p1.Name} deck: {String.Join(", ", p1Deck.Select(c => c.ToString()))}");
-                    log.Add($"{p2.Name} deck: {String.Join(", ", p2Deck.Select(c => c.ToString()))}");
+                    log.Add($"{p1.Name}'s deck: {String.Join(", ", p1Deck.Select(c => c.ToString()))}");
+                    log.Add($"{p2.Name}'s deck: {String.Join(", ", p2Deck.Select(c => c.ToString()))}");
                     continue;
                 }
 

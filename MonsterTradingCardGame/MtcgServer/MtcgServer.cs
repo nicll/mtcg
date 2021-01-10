@@ -510,7 +510,7 @@ namespace MtcgServer
                     { new Dragon { Id = guidGen(), Damage = 50 }, new Goblin { Id = guidGen(), Damage = 10 }, new WaterSpell { Id = guidGen(), Damage= 20 }, new Ork { Id = guidGen(), Damage = 45 }, new WaterSpell  { Id = guidGen(), Damage = 25 } }),
                     new CardPackage(Guid.Parse("00000005-0000-0000-0000-000000000000"), 55, new ICard[]
                     { new Dragon { Id = guidGen(), Damage = 55 }, new Goblin { Id = guidGen(), Damage =  9 }, new WaterSpell { Id = guidGen(), Damage= 21 }, new Ork { Id = guidGen(), Damage = 55 }, new FireSpell   { Id = guidGen(), Damage = 23 } })
-                };
+            };
 
             await NoThrow(async () => await _db.CreatePlayer(new Player(Guid.Parse("00000000-0000-0000-0001-000000000000"),
                 "tester1", Convert.FromBase64String("7ZXG3g/GuVxwOlVM4fv3qWxV6/kjmDCmElzOG0iM5c0="), String.Empty, String.Empty,

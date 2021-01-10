@@ -411,7 +411,7 @@ namespace MtcgServer.Databases.Postgres
             await cmd.ExecuteNonQueryAsync();
         }
 
-        public async Task<ICollection<CardPackage>> GetPackages()
+        public async Task<ICollection<CardPackage>> ReadPackages()
         {
             using var conn = await OpenConnection();
             using var cmd = new NpgsqlCommand("SELECT package_id, price, card_ids FROM packages", conn);
