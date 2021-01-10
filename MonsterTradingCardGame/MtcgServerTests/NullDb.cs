@@ -22,8 +22,11 @@ namespace MtcgServerTests
         public Task<Player> FindOwner(ICard card)
             => new Task<Player>(() => null);
 
-        public Task<ICollection<CardPackage>> GetPackages()
+        public Task<ICollection<CardPackage>> ReadPackages()
             => new Task<ICollection<CardPackage>>(() => null);
+
+        public Task<bool> IsAnyInStore(ICollection<ICard> cards)
+            => Task.FromResult(false);
 
         public Task<ICollection<Player>> ListPlayers()
             => new Task<ICollection<Player>>(() => null);
@@ -38,6 +41,9 @@ namespace MtcgServerTests
             => new Task<ICollection<CardStoreEntry>>(() => null);
 
         public Task RemoveFromStore(ICard card)
+            => Task.CompletedTask;
+
+        public Task Reset()
             => Task.CompletedTask;
 
         public Task SavePlayer(Player player, PlayerChange changes)

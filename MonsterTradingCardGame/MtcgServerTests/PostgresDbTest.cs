@@ -42,9 +42,9 @@ namespace MtcgServerTests
 
             try
             {
-                _db.CreateCard(card).RunSynchronously();
+                _db.CreateCard(card).Wait();
             }
-            catch (Npgsql.PostgresException)
+            catch (AggregateException e) when (e.InnerException is Npgsql.PostgresException)
             {
                 // may happen when database has not been reset as card has already been inserted before
                 Assert.Warn("Did not create demo card as ID already exists.");
@@ -58,6 +58,22 @@ namespace MtcgServerTests
 
             Assert.NotNull(card);
             Assert.AreEqual(DemoCard1Id, card.Id);
+        }
+
+        [Test]
+        public void TestReadStore()
+        {
+            var store = _db.ReadStore().Result;
+
+            Assert.NotNull(store);
+        }
+
+        [Test]
+        public void TestReadPackages()
+        {
+            var packages = _db.ReadPackages().Result;
+
+            Assert.NotNull(packages);
         }
     }
 }
