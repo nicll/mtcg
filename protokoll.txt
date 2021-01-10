@@ -1,0 +1,85 @@
+Überblick über meine Implementierung des MTCG
+
+Meine Implementierung ist in mehrere Projekte aufgeteilt:
+- MtcgServer: enthält Kernfunktionalität des Projekts und definiert Interfaces
+- MtcgServerPostgresAdapter: enthält die Anbindung zur PostgreSQL Datenbank
+                             implementiert IDatabase Interface
+- RestWebServer: implementiert den HTTP Webserver
+- MtcgLauncher: ein startbares Programm, das Routen definiert und diese mit den
+                entsprechenden Methoden in MtcgServer verbindet
+- MtcgServerTests: enthält Unittests für das Projekt
+
+Die Hauptkomponenten wurden so entworfen, dass sie austauschbar sind. So können
+beispielsweise beliebige Datenbanken oder auch alternative Handler für Battles
+verwendet werden. Die Funktionalität ist auf viele Klassen unterteilt, welche
+schlussendlich aber in der MtcgServer-Klasse zusammenlaufen. Über diese Klasse
+ist die restliche Funktionalität des Projekts erreichbar. Alle Methoden, die
+auf IO warten laufen zudem asynchron.
+
+Battles werden vom ausgewählten Handler bearbeitet. Der enthaltene lagert die
+Schadensberechnung auf die Karten aus, welche über die CalculateDamage(ICard)
+-Methode erfolgt. Natürlich könnte ein alternativer Handler den Schaden auch
+direkt berechnen. Das Ergebnis eines Battles wird über die BattleResult-Klasse
+mitgeteilt. Diese Klasse hat drei Unterklassen für unterschiedliche
+Ausgangsfälle eines Battles:
+a) es gibt einen Gewinner und einen Verlierer,
+b) es ist unentschieden oder
+c) das Battle wurde gecancelt (passiert bei mir nur, wenn der Spieler gegen
+sich selbst spielen würde)
+
+Die Karten sind in einer Hierarchie angeordnet, sodass jede Karte entweder von
+MonsterCard oder SpellCard erbt, welche wiederrum von CardBase erbt,
+grundlegende Funktionen implementiert und das ICard-Interface implementiert.
+
+Für Scoreboards gibt es das IScoreboard-Interface, welches verwendet wird,
+um Spieler zu sortieren. Um den Aufwand gering zu halten fordert dieses einfach
+nur eine Implementierung von IComparer<Player>. Es sind drei vordefinierte
+Scoreboard enthalten, welche nach der höchsten ELO, den meisten Wins oder den
+wenigsten Losses sortieren. Beim Abruf über MtcgServer kann außerdem noch ein
+Limit gesetzt werden, sodass nur die X besten oder schlechtesten enthalten sind.
+
+Packages können entweder direkt gekauft werden oder auch zufällig ausgewählt
+werden, je nachdem, welches sich der Spieler noch leisten kann. Alternativ
+können auch komplett zufällig vordefinierte Karten gekauft werden.
+
+Beim Trading können Karten getauscht werden, wobei die zweite Karte eine oder
+mehrere Bedingungen erfüllen muss. Die Bedingungen wurden über das
+ICardRequirement-Interface realisiert, welches eine Methode zum Überprüfen
+von möglichen Tauschkarten bereitstellt.
+
+Weiters habe ich einige neue C# 9 Features ausprobiert
+(records, with-expressions, ...).
+
+Ich habe einige Unittests zum Prüfen der Angriffsszenarien erstellt, da es hier
+diverse viele Kombinationen gibt, die eine besondere Schadensberechnung haben.
+Weiters werden auch die "üblicheren" Funktionen, wie das Suchen von Spielern
+per Name und ID geprüft.
+Das Batchscript mit den Integrationtests ist im MtcgServerTests-Order:
+.\MonsterTradingCardGame\MtcgServerTests\mtcg_tests.bat
+Damit die Konsole nicht komplett zugespammt wird, habe ich zwischendrinnen
+ein paar Mal "pause" eingefügt.
+Da die IDs normalerweise zufällig generiert werden habe ich eine Methode
+geschrieben, die Testdaten mit fixen IDs erzeugt.
+
+################################################################################
+
+Lessons Learned
+
+Async und Locks: Bei asynchronem Code sollte man keine Locks sondern
+                 stattdessen Semaphores verwenden.
+Async allgemein: Synchronen und asynchronen Code zu mischen ist umständlich und
+                 kann Fehler verursachen. Wenn das Projekt (und Abhängigkeiten)
+                 jedoch gänzlich async sind ist dies deutlich einfacher.
+C# 9 Features:   Records sind sehr hilfreich (z.B. für Player verwendet).
+                 "init;" für Properties ist auch praktisch, kann aber leider
+                 nicht gemeinsam mit "private set;" verwendet werden.
+                 "with"-Expressions machen den Code schöner funktionieren aber
+                 nur gemeinsam mit Records.
+
+################################################################################
+
+Zeitaufwand (grobe Schätzung)
+REST Webserver: 15 Stunden
+MTCG: 55 Stunden
+Repository: https://github.com/nicll/mtcg
+

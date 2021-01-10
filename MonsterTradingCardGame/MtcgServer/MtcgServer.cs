@@ -109,6 +109,8 @@ namespace MtcgServer
         /// <param name="session">Session of the player.</param>
         public async Task<BattleResult?> InvokeBattle(Session session)
         {
+            // WaitHandle would probably have been very useful here...
+
             if (await GetPlayer(session) is not Player player)
                 return null;
 
